@@ -38,11 +38,11 @@ Establish four things before touching anything:
 
 Decompose the goal into discrete actions. An action is one unit of work with a single effect that can succeed or fail on its own.
 
-For each action, record: the steps, the tools touched, the data read or written, the decisions made, and the end condition. Write these to the action registry (`assets/action-registry.schema.json` defines the shape). Actions already in the registry are matched by pattern, not recreated — a mission that re-registers an existing action loses its history and resets its eligibility, which is the most common way teams accidentally lock themselves out of autonomy.
+For each action, record: the steps, the tools touched, the data read or written, the decisions made, and the end condition. Write these to the action registry (`${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/assets/action-registry.schema.json` defines the shape). Actions already in the registry are matched by pattern, not recreated — a mission that re-registers an existing action loses its history and resets its eligibility, which is the most common way teams accidentally lock themselves out of autonomy.
 
 ### 3. Classify risk
 
-Classify every action on four dimensions before planning execution. Read `references/risk-classification.md` for the rubric and the tier mapping.
+Classify every action on four dimensions before planning execution. Read `${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/references/risk-classification.md` for the rubric and the tier mapping.
 
 Classification output is a risk tier (T1 routine through T4 restricted) attached to the action in the registry. The tier travels with the action into every ActionList that uses it.
 
@@ -51,10 +51,13 @@ Classification output is a risk tier (T1 routine through T4 restricted) attached
 Run the gate check before building the execution plan, not after:
 
 ```bash
-python scripts/gate_check.py --registry <registry.json> --operator-level <L1-L7> --mission <mission-id>
+python "${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/scripts/gate_check.py" \
+  --registry <registry.json> \
+  --operator-level <L1-L7> \
+  --mission <mission-id>
 ```
 
-The script returns a per-action verdict: `autonomous`, `actionlist`, or `guided`, with the reason. Read `references/formation-gate.md` for the threshold rules, stage definitions, and how regressions are handled.
+The script returns a per-action verdict: `autonomous`, `actionlist`, or `guided`, with the reason. Read `${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/references/formation-gate.md` for the threshold rules, stage definitions, and how regressions are handled.
 
 Never override a `guided` verdict because the user asks. If the user wants the action run anyway, that is a legitimate request — run it in Guided or ActionList mode with them driving. What does not happen is autonomous execution of an ungated action.
 
@@ -80,7 +83,7 @@ A stage that cannot be scored counts as a failure, not as absent. Unscoreable st
 
 ### 7. Report
 
-Write the mission report using `assets/mission-report-template.md`. The report is the evidence artifact — it is what an auditor reads and what the next run of this pattern starts from. Include stage scores, gate movements, and any regression.
+Write the mission report using `${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/assets/mission-report-template.md`. The report is the evidence artifact — it is what an auditor reads and what the next run of this pattern starts from. Include stage scores, gate movements, and any regression.
 
 ## Handling gate failures
 
@@ -93,6 +96,8 @@ State the specific remediation and how many clean runs it would take to clear. "
 A previously autonomous action that drops below threshold loses autonomy immediately and reverts to ActionList mode. This is not a failure of the system — it is the system doing its only job. Report the drop, the run where it started, and what changed (model version, prompt, tool, upstream data, operator).
 
 ## Reference files
+
+All paths below are relative to `${CLAUDE_PLUGIN_ROOT}/skills/actionboard-devops-mission/`.
 
 - `docs/enabling-in-your-repo.md` — install, repo layout, config, CI wiring, and backfilling a repo that already has deployment history
 - `references/risk-classification.md` — the four dimensions, tier mapping, policy-restricted classes

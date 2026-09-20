@@ -1,0 +1,26 @@
+{
+  "name": "actionboard-v5-agentformation",
+  "displayName": "ActionBoard-V5-AgentFormation",
+  "version": "0.5.0",
+  "description": "Turn one objective into a reviewed plan, then execute it with five parallel agents that never touch the same file. Nothing runs until you approve. Actions are risk-classified and gated on scored run history, so nothing executes autonomously until it has proven it can. Briefs, plans, and reports export as Markdown plus schema.org JSON-LD, so a directory of missions becomes a queryable history.",
+  "author": {
+    "name": "jarjis imam",
+    "email": "jarjis@actionboard.ai"
+  },
+  "homepage": "https://github.com/Cloudscockpit/actionboard-build-mission-pipeline#readme",
+  "repository": "https://github.com/Cloudscockpit/actionboard-build-mission-pipeline",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "orchestration",
+    "multi-agent",
+    "mission",
+    "planning",
+    "knowledge-graph",
+    "json-ld",
+    "schema-org",
+    "maturity-gate",
+    "devops",
+    "risk-classification"
+  ]
+}

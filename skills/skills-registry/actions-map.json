@@ -1,0 +1,188 @@
+{
+  "version": "0.5.0",
+  "description": "ActionBoard V5 AgentFormation actions map \u2014 which Agent handles which action type, and what each action requires. Consumed by the skills-registry skill during Skills Gap analysis (mission Step 4).",
+  "actionTypes": [
+    {
+      "action": "code-implementation",
+      "agent": "red-agent",
+      "description": "Write or modify application code, scaffold features, ship implementations",
+      "requiredTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "file-scaffolding",
+      "agent": "red-agent",
+      "description": "Create new files, directories, boilerplate, and project structure",
+      "requiredTools": [
+        "Write",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "api-integration",
+      "agent": "blue-agent",
+      "description": "API clients, SDK wrappers, webhook handlers, external service wiring",
+      "requiredTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "WebFetch"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "database-schema",
+      "agent": "blue-agent",
+      "description": "Schemas, migrations, query layers; additive changes preferred",
+      "requiredTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "data-pipeline",
+      "agent": "blue-agent",
+      "description": "Data transformation pipelines, file and stream I/O, event consumers",
+      "requiredTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "codebase-recon",
+      "agent": "green-agent",
+      "description": "Inventory the project, surface the code map, identify relevant files and patterns",
+      "requiredTools": [
+        "Read",
+        "Glob",
+        "Grep"
+      ],
+      "skills": [
+        "graphify"
+      ],
+      "requires": "graphify skill optional \u2014 used when ./graphify-out/ index is present and fresh",
+      "status": "covered"
+    },
+    {
+      "action": "web-research",
+      "agent": "green-agent",
+      "description": "Research external docs, upstream APIs, and unfamiliar terms for the mission",
+      "requiredTools": [
+        "WebFetch",
+        "WebSearch"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "test-authoring",
+      "agent": "yellow-agent",
+      "description": "Write unit/integration tests for code Red and Blue produced; run suites",
+      "requiredTools": [
+        "Read",
+        "Edit",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "security-review",
+      "agent": "yellow-agent",
+      "description": "Trust-boundary validation, secret handling, auth checks, severity-rated findings",
+      "requiredTools": [
+        "Read",
+        "Grep",
+        "Bash"
+      ],
+      "skills": [],
+      "status": "covered"
+    },
+    {
+      "action": "skill-scaffolding",
+      "agent": "black-agent",
+      "description": "Create a new skill when Skills Gap analysis finds a needs-new-skill capability",
+      "requiredTools": [
+        "Skill"
+      ],
+      "skills": [
+        "skill-creator"
+      ],
+      "requires": "explicit user approval per skill; new skills take effect next session or after /reload-plugins",
+      "status": "covered"
+    },
+    {
+      "action": "live-browser-action",
+      "agent": "black-agent",
+      "description": "Drive a real browser during a mission \u2014 navigate, read pages, fill forms, screenshot, debug web apps (in-app Browser or Claude in Chrome)",
+      "requiredTools": [
+        "Skill"
+      ],
+      "skills": [
+        "browser-actions"
+      ],
+      "requires": "runs in the main session with per-site user approval; credentials and CAPTCHAs are always handed to the user",
+      "status": "conditional"
+    },
+    {
+      "action": "mission-brief-authoring",
+      "agent": "black-agent",
+      "description": "Write a Mission Brief as Markdown plus a schema.org JSON-LD knowledge graph",
+      "requiredTools": [
+        "Skill",
+        "Read",
+        "Write"
+      ],
+      "skills": [
+        "mission-brief"
+      ],
+      "status": "covered"
+    },
+    {
+      "action": "mission-plan-authoring",
+      "agent": "black-agent",
+      "description": "Write a Mission Plan (Agent Assignments, Skills Gap, Risk Register) as Markdown plus a schema.org JSON-LD knowledge graph",
+      "requiredTools": [
+        "Skill",
+        "Read",
+        "Write"
+      ],
+      "skills": [
+        "mission-plan"
+      ],
+      "status": "covered"
+    },
+    {
+      "action": "mission-report-authoring",
+      "agent": "black-agent",
+      "description": "Write a Mission Report recording each assignment's outcome against the plan's graph nodes, as Markdown plus schema.org JSON-LD",
+      "requiredTools": [
+        "Skill",
+        "Read",
+        "Write"
+      ],
+      "skills": [
+        "mission-report"
+      ],
+      "requires": "a mission-plan document must exist first \u2014 the report resolves its assignments, it does not create them",
+      "status": "covered"
+    }
+  ]
+}

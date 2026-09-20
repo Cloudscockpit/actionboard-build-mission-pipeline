@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ActionBoard V5 AgentFormation — multi-agent missions for Claude Code &amp; Cowork</title>
+<meta name="description" content="ActionBoard V5 AgentFormation turns one objective into a reviewed plan, then runs it with five parallel agents that never touch the same file. Setup for Claude Code and Claude Cowork, plus how to add your own skills for the Agents.">
+<meta name="author" content="Jarjis Imam — CloudsCockpit.io Inc.">
+<meta name="color-scheme" content="light dark">
+<link rel="canonical" href="https://cloudscockpit.github.io/actionboard-build-mission-pipeline/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#129409;</text></svg>">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cloudscockpit.github.io/actionboard-build-mission-pipeline/">
+<meta property="og:title" content="ActionBoard V5 AgentFormation — multi-agent missions for Claude Code &amp; Cowork">
+<meta property="og:description" content="ActionBoard V5 AgentFormation turns one objective into a reviewed plan, then runs it with five parallel agents that never touch the same file. Setup for Claude Code and Claude Cowork, plus how to add your own skills for the Agents.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ActionBoard V5 AgentFormation">
+<meta name="twitter:description" content="ActionBoard V5 AgentFormation turns one objective into a reviewed plan, then runs it with five parallel agents that never touch the same file. Setup for Claude Code and Claude Cowork, plus how to add your own skills for the Agents.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+  /* minimal reset (supplied by the artifact host; explicit here for standalone) */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img, svg, video { max-width: 100%; height: auto; }
+  table { border-collapse: collapse; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  :root {
+    --paper:      #F6F7F9;
+    --surface:    #FFFFFF;
+    --surface-2:  #EFF1F5;
+    --ink:        #14181F;
+    --ink-soft:   #5B6573;
+    --ink-faint:  #8A94A3;
+    --rule:       #DDE1E7;
+    --rule-soft:  #E8EBF0;
+    --accent:     #A9660F;
+    --accent-ink: #FFFFFF;
+    --accent-wash:#F7EBD9;
+
+    --agent-black:  #4A5567;
+    --agent-red:    #C4432F;
+    --agent-blue:   #2A6BC4;
+    --agent-green:  #2C8657;
+    --agent-yellow: #A97F0E;
+
+    --ok:   #2C8657;
+    --warn: #A9660F;
+
+    --step: clamp(0.9rem, 0.55rem + 1.1vw, 1.02rem);
+    --measure: 68ch;
+    --radius: 3px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0F1319;
+      --surface:    #161B23;
+      --surface-2:  #1D232D;
+      --ink:        #E5E9F0;
+      --ink-soft:   #98A2B1;
+      --ink-faint:  #6B7687;
+      --rule:       #272E3A;
+      --rule-soft:  #1F2630;
+      --accent:     #E9A94C;
+      --accent-ink: #17120A;
+      --accent-wash:#2A2114;
+
+      --agent-black:  #8794A8;
+      --agent-red:    #E8705C;
+      --agent-blue:   #5F9DEE;
+      --agent-green:  #4FB582;
+      --agent-yellow: #E0B440;
+
+      --ok:   #4FB582;
+      --warn: #E9A94C;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #0F1319;
+    --surface:    #161B23;
+    --surface-2:  #1D232D;
+    --ink:        #E5E9F0;
+    --ink-soft:   #98A2B1;
+    --ink-faint:  #6B7687;
+    --rule:       #272E3A;
+    --rule-soft:  #1F2630;
+    --accent:     #E9A94C;
+    --accent-ink: #17120A;
+    --accent-wash:#2A2114;
+
+    --agent-black:  #8794A8;
+    --agent-red:    #E8705C;
+    --agent-blue:   #5F9DEE;
+    --agent-green:  #4FB582;
+    --agent-yellow: #E0B440;
+
+    --ok:   #4FB582;
+    --warn: #E9A94C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: var(--step);
+    line-height: 1.6;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 clamp(1.1rem, 4vw, 2.75rem);
+  }
+
+  h1, h2, h3, .display {
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  code, kbd, pre, .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  a { color: inherit; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  /* ── Section scaffolding ─────────────────────────────── */
+  section { border-top: 1px solid var(--rule); padding: clamp(2.6rem, 6vw, 4.2rem) 0; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 1.1rem;
+  }
+  .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+  h2 { font-size: clamp(1.45rem, 1rem + 1.7vw, 2rem); font-weight: 700; letter-spacing: -0.018em; }
+  h3 { font-size: 1.02rem; font-weight: 600; letter-spacing: -0.005em; margin-bottom: 0.35rem; }
+  .lede { color: var(--ink-soft); max-width: var(--measure); margin: 0.85rem 0 0; }
+  p { max-width: var(--measure); }
+
+  /* ── Hero ────────────────────────────────────────────── */
+  header.hero { padding: clamp(3rem, 8vw, 5.5rem) 0 clamp(2.4rem, 5vw, 3.4rem); }
+
+  .wordmark {
+    display: flex; align-items: baseline; gap: 0.85rem;
+    font-family: Archivo, sans-serif; font-weight: 700;
+    font-size: clamp(2.3rem, 1.1rem + 4.6vw, 4rem);
+    letter-spacing: -0.035em; line-height: 1;
+  }
+  .wordmark .v { color: var(--ink); }
+  .wordmark .ver {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; font-weight: 500;
+    letter-spacing: 0.08em; color: var(--ink-faint);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 0.16rem 0.6rem;
+    align-self: center; white-space: nowrap;
+  }
+
+  .thesis {
+    font-family: Archivo, sans-serif; font-weight: 500;
+    font-size: clamp(1.1rem, 0.8rem + 1.1vw, 1.45rem);
+    line-height: 1.38; letter-spacing: -0.012em;
+    max-width: 30ch; margin: 1.5rem 0 0; color: var(--ink);
+  }
+  .thesis em { font-style: normal; color: var(--accent); }
+
+  .hero-sub { color: var(--ink-soft); max-width: 56ch; margin: 1.1rem 0 0; }
+
+  .cmdline {
+    margin-top: 2rem;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 0.9rem 1.1rem; overflow-x: auto;
+    display: flex; align-items: center; gap: 0.7rem;
+  }
+  .cmdline .prompt { color: var(--accent); font-weight: 600; }
+  .cmdline code { font-size: 0.86rem; white-space: nowrap; }
+
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.74rem; color: var(--ink-faint);
+    letter-spacing: 0.02em;
+  }
+  .meta-row span { display: inline-flex; align-items: center; gap: 0.42rem; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+
+  /* ── Dispatch board ──────────────────────────────────── */
+  .board {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); overflow: hidden; margin-top: 1.9rem;
+  }
+  .board-head {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    padding: 0.7rem 1.05rem; background: var(--surface-2);
+    border-bottom: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.7rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  .assignments { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  .assignments th {
+    text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  .assignments td { padding: 0.78rem 0.85rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .assignments tr:last-child td { border-bottom: 0; }
+  .assignments td.file { font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; color: var(--ink-soft); white-space: nowrap; }
+
+  .agent-cell { white-space: nowrap; font-weight: 600; padding-left: 1.15rem !important; position: relative; }
+  .agent-cell::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c);
+  }
+  .board-foot {
+    padding: 0.85rem 1.05rem; background: var(--accent-wash);
+    border-top: 1px solid var(--rule); font-size: 0.83rem; color: var(--ink);
+  }
+  .board-foot strong { color: var(--accent); font-weight: 600; }
+
+  .scroller { overflow-x: auto; }
+
+  /* ── Roster ──────────────────────────────────────────── */
+  .roster { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; margin-top: 1.8rem; grid-template-columns: repeat(auto-fit, minmax(188px, 1fr)); }
+  .agent { background: var(--surface); padding: 1.05rem 1.1rem; }
+  .agent .tag {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--c); margin-bottom: 0.5rem;
+  }
+  .agent .tag::before { content: ""; width: 9px; height: 9px; background: var(--c); border-radius: 2px; }
+  .agent p { font-size: 0.83rem; color: var(--ink-soft); margin: 0; max-width: none; }
+
+  /* ── Setup split ─────────────────────────────────────── */
+  .split { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); margin-top: 1.9rem; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 1.3rem; display: flex; flex-direction: column; gap: 0.85rem;
+  }
+  .panel-title { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; }
+  .panel-title h3 { margin: 0; }
+  .badge {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.65rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-faint);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 0.13rem 0.5rem; white-space: nowrap;
+  }
+  .panel ol, .panel ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.87rem; }
+  .panel li::marker { color: var(--ink-faint); }
+  .panel p { font-size: 0.87rem; color: var(--ink-soft); margin: 0; max-width: none; }
+
+  pre {
+    background: var(--surface-2); border: 1px solid var(--rule); border-radius: var(--radius);
+    padding: 0.8rem 0.95rem; overflow-x: auto; margin: 0;
+    font-size: 0.78rem; line-height: 1.62;
+  }
+  pre .c { color: var(--ink-faint); }
+  pre .k { color: var(--accent); }
+  :not(pre) > code {
+    background: var(--surface-2); border: 1px solid var(--rule-soft);
+    border-radius: 2px; padding: 0.08em 0.34em; font-size: 0.87em;
+  }
+
+  .note {
+    border-left: 2px solid var(--accent); background: var(--accent-wash);
+    padding: 0.75rem 0.95rem; font-size: 0.83rem; border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .note strong { font-weight: 600; }
+
+  /* ── Steps ───────────────────────────────────────────── */
+  .steps { margin-top: 1.9rem; display: flex; flex-direction: column; gap: 0; counter-reset: s; }
+  .step {
+    display: grid; grid-template-columns: 2.6rem 1fr; gap: 0 1.15rem;
+    padding: 1.35rem 0; border-top: 1px solid var(--rule-soft);
+  }
+  .step:first-child { border-top: 0; }
+  .step::before {
+    counter-increment: s; content: counter(s, decimal-leading-zero);
+    font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; font-weight: 600;
+    color: var(--accent); padding-top: 0.15rem;
+  }
+  .step-body { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  .step-body p { font-size: 0.88rem; color: var(--ink-soft); margin: 0; }
+
+  /* ── Gotchas ─────────────────────────────────────────── */
+  .gotchas { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.84rem; }
+  .gotchas th {
+    text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint);
+    padding: 0.6rem 0.8rem 0.6rem 0; border-bottom: 1px solid var(--rule); white-space: nowrap;
+  }
+  .gotchas td { padding: 0.8rem 0.8rem 0.8rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  .gotchas td:first-child { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--ink); white-space: nowrap; padding-right: 1.3rem; }
+  .gotchas td:last-child { color: var(--ink-soft); }
+
+  /* ── Footer ──────────────────────────────────────────── */
+  footer { border-top: 1px solid var(--rule); padding: 2.4rem 0 3.4rem; color: var(--ink-faint); font-size: 0.82rem; }
+  .foot-grid { display: flex; flex-wrap: wrap; gap: 1rem 2.4rem; align-items: baseline; justify-content: space-between; }
+  .repo { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--ink); }
+
+  @media (max-width: 560px) {
+    .step { grid-template-columns: 1fr; gap: 0.55rem; }
+    .step::before { padding-top: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ── Platform / ActionBoard ──────────────────────────── */
+  .slab {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); padding: clamp(1.3rem, 3vw, 2rem); margin-top: 1.9rem;
+  }
+  .loop {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+    border-radius: var(--radius); overflow: hidden; margin-top: 1.5rem;
+  }
+  .phase { background: var(--surface); padding: 0.95rem 1rem; }
+  .phase .n {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; font-weight: 600;
+    letter-spacing: 0.1em; color: var(--accent); display: block; margin-bottom: 0.3rem;
+  }
+  .phase .nm { font-family: Archivo, sans-serif; font-weight: 600; font-size: 0.92rem; display: block; }
+  .phase p { font-size: 0.79rem; color: var(--ink-soft); margin: 0.3rem 0 0; max-width: none; }
+
+  .cards { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 1.9rem; }
+  .card { display: flex; flex-direction: column; gap: 0.5rem; }
+  .card h3 { margin: 0; }
+  .card p { font-size: 0.86rem; color: var(--ink-soft); margin: 0; max-width: none; }
+  .card .plat {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-faint); margin-top: 0.15rem;
+  }
+
+  .cta {
+    display: inline-flex; align-items: center; gap: 0.5rem; align-self: flex-start;
+    margin-top: 1.7rem; padding: 0.62rem 1.15rem;
+    background: var(--accent); color: var(--accent-ink);
+    font-family: Archivo, sans-serif; font-weight: 600; font-size: 0.88rem;
+    border-radius: var(--radius); text-decoration: none;
+  }
+  .cta:hover { filter: brightness(1.08); }
+  .cta .arr { font-family: "IBM Plex Mono", monospace; }
+
+  /* ── Author ──────────────────────────────────────────── */
+  .author { display: grid; grid-template-columns: auto 1fr; gap: 0 1.15rem; align-items: start; margin-top: 1.7rem; }
+  .sigil {
+    width: 46px; height: 46px; border-radius: var(--radius);
+    background: var(--ink); color: var(--paper);
+    display: grid; place-items: center;
+    font-family: Archivo, sans-serif; font-weight: 700; font-size: 1.02rem; letter-spacing: -0.02em;
+  }
+  .author .nm { font-family: Archivo, sans-serif; font-weight: 600; font-size: 1.02rem; }
+  .author .org { color: var(--ink-soft); font-size: 0.88rem; margin-top: 0.1rem; }
+  .author .links {
+    display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-top: 0.65rem;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.78rem;
+  }
+  .author .links a { color: var(--ink-soft); }
+  .author .links a:hover { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="wordmark">
+      <span class="v">ActionBoard V5 AgentFormation</span>
+      <span class="ver">v0.4.1 · MIT</span>
+    </div>
+
+    <p class="thesis">
+      Turn one objective into a reviewed plan, then run it with five parallel agents that never
+      touch the same file. <em>Nothing runs until you approve.</em>
+    </p>
+
+    <p class="hero-sub">
+      A plugin for Claude Code and Claude Cowork. One command drafts the mission, assigns each
+      agent its own files, flags what it can't do yet, and stops for your go-ahead.
+    </p>
+
+    <div class="cmdline">
+      <span class="prompt mono">&gt;</span>
+      <code>/start-mission add a /health endpoint to the express app that returns service version</code>
+    </div>
+
+    <div class="meta-row">
+      <span><i class="dot"></i>Claude Code</span>
+      <span><i class="dot"></i>Claude Cowork</span>
+      <span>6 skills · 5 agents</span>
+      <span>~1,250 tokens always-on</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="eyebrow">What comes back</div>
+    <h2>The plan arrives before the work does</h2>
+    <p class="lede">
+      Black Agent drafts the brief, sends Green Agent on read-only recon, then stops. You read
+      four tables and decide. This is the mission board for the command above.
+    </p>
+
+    <div class="board">
+      <div class="board-head">
+        <span>Agent Assignments</span>
+        <span>mission · add-health-endpoint</span>
+      </div>
+      <div class="scroller">
+        <table class="assignments">
+          <thead>
+            <tr><th>Agent</th><th>Task</th><th>Files owned</th><th>Depends on</th><th>Acceptance</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="agent-cell" style="--c: var(--agent-red)">Red</td>
+              <td>Implement GET /health</td>
+              <td class="file">src/routes/health.js</td>
+              <td>—</td>
+              <td>Returns 200 with version</td>
+            </tr>
+            <tr>
+              <td class="agent-cell" style="--c: var(--agent-blue)">Blue</td>
+              <td>Read version at boot</td>
+              <td class="file">src/config/version.js</td>
+              <td>—</td>
+              <td>Matches package.json</td>
+            </tr>
+            <tr>
+              <td class="agent-cell" style="--c: var(--agent-yellow)">Yellow</td>
+              <td>Integration test</td>
+              <td class="file">test/health.test.js</td>
+              <td>Red, Blue</td>
+              <td>npm test passes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="board-foot">
+        Mission ready. Reply <strong>go</strong> to dispatch Agents, <strong>no-go</strong> to
+        revise, or <strong>edit &lt;section&gt;</strong> to change one table.
+      </div>
+    </div>
+
+    <p class="lede" style="margin-top:1.5rem">
+      That <strong>Files owned</strong> column is the whole trick. Red and Blue hold different
+      files, so they run at the same time and cannot collide; Yellow waits because it depends on
+      both. Ownership is checked before dispatch rather than discovered later as a merge conflict.
+    </p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The roster</div>
+    <h2>Five specialists, one commander</h2>
+    <p class="lede">
+      Each Agent has its own tools and its own lane. The commander plans and delegates — it never
+      writes code itself.
+    </p>
+
+    <div class="roster">
+      <div class="agent" style="--c: var(--agent-black)">
+        <div class="tag">Black · Main</div>
+        <p>Commander. Plans, delegates, gates on your approval, reports.</p>
+      </div>
+      <div class="agent" style="--c: var(--agent-red)">
+        <div class="tag">Red</div>
+        <p>Rapid execution. Builds features, writes code, scaffolds.</p>
+      </div>
+      <div class="agent" style="--c: var(--agent-blue)">
+        <div class="tag">Blue</div>
+        <p>Data and integrations. APIs, schemas, pipelines, plumbing.</p>
+      </div>
+      <div class="agent" style="--c: var(--agent-green)">
+        <div class="tag">Green</div>
+        <p>Recon, read-only. Maps the codebase before anything is planned.</p>
+      </div>
+      <div class="agent" style="--c: var(--agent-yellow)">
+        <div class="tag">Yellow</div>
+        <p>Quality and defense. Tests, verification, security review.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Setup · both apps</div>
+    <h2>Install it in under a minute</h2>
+    <p class="lede">
+      Same plugin either way. Pick the column that matches the app you use — Claude Code is the
+      terminal, Cowork is the desktop and web app.
+    </p>
+
+    <div class="split">
+      <div class="panel">
+        <div class="panel-title">
+          <h3>Claude Code</h3>
+          <span class="badge">Terminal</span>
+        </div>
+        <p>Run these two commands in any session:</p>
+        <pre><code>/plugin marketplace add Cloudscockpit/actionboard-build-mission-pipeline
+/plugin install actionboard-v5-agentformation@actionboard-v5-agentformation</code></pre>
+        <p>
+          If the install summary says <code>Run /reload-plugins to activate.</code>, run
+          <code>/reload-plugins</code>. Otherwise it is already live.
+        </p>
+        <p>Confirm it loaded:</p>
+        <pre><code>claude plugin details actionboard-v5-agentformation@actionboard-v5-agentformation</code></pre>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <h3>Claude Cowork</h3>
+          <span class="badge">No terminal</span>
+        </div>
+        <p>This happens in the interface, not the chat box — typing the command above into a Cowork message will not work.</p>
+        <ol>
+          <li>Open <strong>Customize</strong> in the sidebar, then <strong>Plugins</strong>.</li>
+          <li>Select <strong>Add marketplace</strong> and enter<br><code>Cloudscockpit/actionboard-build-mission-pipeline</code></li>
+          <li>Find <strong>ActionBoard V5 AgentFormation</strong> in the list and select <strong>Install</strong>.</li>
+          <li>Open the installed plugin to review its skills and agents before enabling them.</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:1.5rem">
+      <strong>Then, in either app:</strong> type <code>/start-mission</code> followed by what you
+      want done, in plain English. You will get the four tables above and a prompt to approve.
+      Nothing is written until you reply <code>go</code>.
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Extending · new skills</div>
+    <h2>Teaching the Agents something new</h2>
+    <p class="lede">
+      A skill is a folder with one Markdown file. The Agents pick it up automatically once it is
+      registered in the actions map. There are two ways in, depending on whether you want the
+      skill for this mission or for good.
+    </p>
+
+    <h3 style="margin-top:2.2rem">Option A — let ActionBoard V5 build it mid-mission</h3>
+    <p class="lede" style="margin-bottom:1rem">
+      During Skills Gap analysis, any capability with no registry match is flagged
+      <code>needs-new-skill</code>. ActionBoard V5 asks before creating anything:
+    </p>
+    <pre><code>Skills Gap includes 1 new skill: pdf-extraction.
+Want me to scaffold it via skill-creator now? (yes / no / skip &lt;name&gt;)</code></pre>
+    <p class="lede">
+      Answer <code>yes</code> and it scaffolds the skill through <code>skill-creator</code>. The
+      new skill becomes available next session, or immediately after
+      <code>/reload-plugins</code>. Good for one-off gaps; it lives in your own skills directory,
+      not in the plugin.
+    </p>
+
+    <h3 style="margin-top:2.4rem">Option B — ship it inside the plugin</h3>
+    <p class="lede">
+      Fork the repo and add the skill properly, so it travels with the plugin for every user.
+      Six steps, in order.
+    </p>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Create the folder and SKILL.md</h3>
+          <p>
+            The folder name and the <code>name:</code> in the frontmatter must match exactly. If
+            they differ, the skill is skipped silently — no error, it simply never appears.
+          </p>
+          <pre><code><span class="c">skills/changelog-writer/SKILL.md</span>
+
+---
+<span class="k">name:</span> changelog-writer
+<span class="k">description:</span> Write a release changelog from merged commits,
+  grouped by type. Use when the user asks to "write the
+  changelog", "what shipped this release", or at the end
+  of a mission that touched multiple features.
+---
+
+# Changelog Writer
+
+Read the commit range, group by type, write to CHANGELOG.md.
+...</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Write the description like a trigger, not a summary</h3>
+          <p>
+            The <code>description</code> is the only thing Claude sees when deciding whether to
+            fire the skill. Include the literal phrases a person would actually type. "Writes
+            changelogs" will not trigger; the version above will.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Register it in the actions map</h3>
+          <p>
+            Add an entry to <code>skills/skills-registry/actions-map.json</code>. This is what
+            Black Agent consults during Skills Gap analysis — an unregistered skill exists but
+            never gets planned into a mission.
+          </p>
+          <pre><code>{
+  <span class="k">"action"</span>: "changelog-authoring",
+  <span class="k">"agent"</span>: "yellow-agent",
+  <span class="k">"description"</span>: "Write a release changelog from merged commits",
+  <span class="k">"requiredTools"</span>: ["Read", "Bash", "Write"],
+  <span class="k">"skills"</span>: ["changelog-writer"],
+  <span class="k">"status"</span>: "covered"
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Check the tools contract</h3>
+          <p>
+            Every tool in <code>requiredTools</code> must appear in that Agent's frontmatter
+            <code>tools:</code> line. Miss one and the Agent is assigned work it physically cannot
+            do — the mission fails at dispatch, not at plan time. The entry above needs
+            <code>Write</code> added to <code>agents/yellow-agent.md</code>, which ships with
+            <code>Read, Edit, Bash, Glob, Grep</code>.
+          </p>
+          <p>Verify every entry at once rather than by eye:</p>
+          <pre><code>python3 - &lt;&lt;'PY'
+import json, re, os
+agents = {}
+for a in os.listdir('agents'):
+    fm = re.match(r'^---\n(.*?)\n---', open(f'agents/{a}').read(), re.S).group(1)
+    n  = re.search(r'^name:\s*(.*)$',  fm, re.M).group(1).strip()
+    tl = re.search(r'^tools:\s*(.*)$', fm, re.M)
+    agents[n] = {x.strip() for x in tl.group(1).split(',')} if tl else None
+
+for a in json.load(open('skills/skills-registry/actions-map.json'))['actionTypes']:
+    have = agents.get(a['agent'])
+    if have and (miss := set(a['requiredTools']) - have):
+        print('MISSING', a['action'], '->', a['agent'], sorted(miss))
+PY</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Reference bundled files by plugin root</h3>
+          <p>
+            If the skill reads anything shipped alongside it — a template, a knowledge-base doc —
+            address it through <code>${CLAUDE_PLUGIN_ROOT}</code>. A bare relative path resolves
+            against whatever project the user is in and the read fails.
+          </p>
+          <pre><code><span class="c">✗</span>  Read the format reference at kb/changelog-format.md
+<span class="c">✓</span>  Read ${CLAUDE_PLUGIN_ROOT}/kb/changelog-format.md</code></pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-body">
+          <h3>Bump the version, then validate</h3>
+          <p>
+            Raise <code>version</code> in <strong>both</strong>
+            <code>.claude-plugin/plugin.json</code> and
+            <code>.claude-plugin/marketplace.json</code>. The version field pins the plugin —
+            users receive an update only when it changes, so a push without a bump sits on GitHub
+            invisibly.
+          </p>
+          <pre><code>claude plugin validate .
+claude plugin validate .claude-plugin/plugin.json
+claude --plugin-dir . -p "list your actionboard-v5-agentformation skills"</code></pre>
+          <p>
+            The first command resolves the <em>marketplace</em> manifest when both live in one
+            folder, which is why the plugin manifest gets its own line. The third actually loads
+            the plugin and proves the skill registers.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <h3 style="margin-top:2.6rem">Things that bite</h3>
+    <div class="scroller">
+      <table class="gotchas">
+        <thead>
+          <tr><th>Symptom</th><th>Cause</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Skill never appears</td>
+            <td>Folder name and frontmatter <code>name:</code> disagree. They must match character for character.</td>
+          </tr>
+          <tr>
+            <td>Skill loads but never fires</td>
+            <td>The <code>description</code> reads like a summary. Put the phrases users actually type into it.</td>
+          </tr>
+          <tr>
+            <td>Agent blocked at dispatch</td>
+            <td>A tool in <code>requiredTools</code> is missing from that Agent's frontmatter <code>tools:</code>.</td>
+          </tr>
+          <tr>
+            <td>Skill exists but is never planned</td>
+            <td>No entry in <code>actions-map.json</code>, so Skills Gap analysis cannot find it.</td>
+          </tr>
+          <tr>
+            <td>File not found at runtime</td>
+            <td>A bundled path written relative instead of through <code>${CLAUDE_PLUGIN_ROOT}</code>.</td>
+          </tr>
+          <tr>
+            <td>Users stay on the old version</td>
+            <td>Pushed without bumping <code>version</code>. The field pins the plugin.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Output</div>
+    <h2>Missions leave a record you can query</h2>
+    <p class="lede">
+      Every mission document is written twice — Markdown for people, schema.org JSON-LD for
+      machines. That is the open format Google's Knowledge Graph consumes, so output loads into a
+      graph store with no transform step.
+    </p>
+
+    <div class="split" style="margin-top:1.7rem">
+      <div class="panel">
+        <div class="panel-title"><h3>On disk</h3><span class="badge">per mission</span></div>
+        <pre><code>actionboard-v5-missions/2026-09-12-add-health/
+  mission-brief.md    mission-brief.jsonld
+  mission-plan.md     mission-plan.jsonld
+  mission-report.md   mission-report.jsonld</code></pre>
+        <p>
+          Written by the <code>mission-brief</code>, <code>mission-plan</code>, and
+          <code>mission-report</code> skills.
+        </p>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><h3>Red Agent's assignment, once done</h3><span class="badge">JSON-LD</span></div>
+        <pre><code>{
+  <span class="k">"@type"</span>: "Action",
+  <span class="k">"@id"</span>: "urn:voltron:...:assignment:1",
+  <span class="k">"agent"</span>:  { "@id": "urn:voltron:lion:red" },
+  <span class="k">"object"</span>: { "@id": "urn:voltron:file:src/routes/health.js" },
+  <span class="k">"actionStatus"</span>: "https://schema.org/CompletedActionStatus"
+}</code></pre>
+        <p>
+          Agent and file identifiers are global across missions — so ten missions later you can ask
+          which files accumulate the most failed assignments.
+        </p>
+      </div>
+    </div>
+  </section>
+
+
+  <section>
+    <div class="eyebrow">Beyond one mission</div>
+    <h2>ActionBoard.ai runs the Agents as a continuous loop</h2>
+    <p class="lede">
+      This plugin gives you one mission at a time, in your editor, on your machine.
+      <a href="https://actionboard.ai">ActionBoard.ai</a> is the platform the Agents come from —
+      where a single mission becomes an operating loop that keeps running, learns from each pass,
+      and spans local, cloud, and mobile.
+    </p>
+
+    <div class="slab">
+      <div class="eyebrow" style="margin-bottom:0.6rem">The RAOARA loop · six phases</div>
+      <p style="margin:0;font-size:0.88rem;color:var(--ink-soft);max-width:var(--measure)">
+        Every ActionBoard run flows through the same six phases, then feeds what it learned back
+        to the start. Where the plugin stops after the mission report, the loop keeps going.
+      </p>
+      <div class="loop">
+        <div class="phase"><span class="n">R 01</span><span class="nm">Recognize</span>
+          <p>Asks clarifying questions until the goal is scoped.</p></div>
+        <div class="phase"><span class="n">A 02</span><span class="nm">Acquire</span>
+          <p>Dispatches sub-agents across docs, web, and APIs.</p></div>
+        <div class="phase"><span class="n">O 03</span><span class="nm">Organize</span>
+          <p>Shapes raw data into an Action Graph.</p></div>
+        <div class="phase"><span class="n">A 04</span><span class="nm">Act</span>
+          <p>Executes — API calls, deploys, writes back.</p></div>
+        <div class="phase"><span class="n">R 05</span><span class="nm">Review</span>
+          <p>Audits for accuracy, drift, and policy compliance.</p></div>
+        <div class="phase"><span class="n">A 06</span><span class="nm">Adapt</span>
+          <p>Crystallises patterns into scheduled automations.</p></div>
+      </div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h3>ActionBoard V5 Desktop</h3>
+        <div class="plat">macOS · Windows · Linux</div>
+        <p>
+          A local-first command center. Browser Action Panels let agents drive real web apps in
+          embedded tabs, and Code Build runs several coding agents across your codebase in
+          parallel. Repos and data stay on your machine until you decide otherwise.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Mission Formation</h3>
+        <div class="plat">Local ↔ cloud</div>
+        <p>
+          Agents burst from local to cloud on demand and settle back when the work is done, so you
+          pay for cloud capacity only on the runs that actually need it.
+        </p>
+      </div>
+      <div class="card">
+        <h3>AI Labs</h3>
+        <div class="plat">~90s spin-up</div>
+        <p>
+          Pre-built Castles backed by sponsor token grants. Pick a model family, and every action
+          you accept or reject becomes labeled telemetry that assembles into a tuning dataset —
+          so the loop sharpens on models you keep.
+        </p>
+      </div>
+    </div>
+
+    <a class="cta" href="https://actionboard.ai">Explore ActionBoard.ai <span class="arr">→</span></a>
+
+    <p class="lede" style="margin-top:1.5rem;font-size:0.84rem">
+      ActionBoard.ai is a separate platform, currently in beta. This plugin is standalone and free
+      under MIT — it needs no ActionBoard account, and nothing here depends on one.
+    </p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Author</div>
+    <h2>Who built this</h2>
+    <div class="author">
+      <div class="sigil">JI</div>
+      <div>
+        <div class="nm">Jarjis Imam</div>
+        <div class="org">CloudsCockpit.io Inc. — builder of ActionBoard.ai and the ActionBoard V5 stack</div>
+        <div class="links">
+          <a href="https://github.com/Cloudscockpit">github.com/Cloudscockpit</a>
+          <a href="mailto:jarjis@actionboard.ai">jarjis@actionboard.ai</a>
+          <a href="https://actionboard.ai">actionboard.ai</a>
+        </div>
+      </div>
+    </div>
+    <p class="lede" style="margin-top:1.5rem">
+      Issues and pull requests are welcome on the
+      <a href="https://github.com/Cloudscockpit/actionboard-build-mission-pipeline">plugin repository</a>.
+      Adding a skill is the easiest way to contribute — the six steps above are the whole process.
+    </p>
+  </section>
+
+  <footer>
+    <div class="foot-grid">
+      <div>
+        <div class="repo">github.com/Cloudscockpit/actionboard-build-mission-pipeline</div>
+        <div style="margin-top:0.35rem">MIT · v0.4.1 · 6 skills, 5 agents</div>
+      </div>
+      <div style="text-align:right">
+        <div>Built for Claude Code and Claude Cowork</div>
+        <div style="margin-top:0.35rem">Cloudscockpit</div>
+      </div>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
