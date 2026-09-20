@@ -21,7 +21,7 @@ never widen `access` without an observed denial.
 **Black / orchestrator.** Holds the mission brief and dispatches. It must
 reach the model endpoint and the pod control API and nothing else. It never
 gets write access to a customer system — if the plan calls for a mutation, it
-hands that step to Yellow. Give it `--no-keep` only for one-shot missions;
+hands that step to Red. Give it `--no-keep` only for one-shot missions;
 otherwise keep it alive for the mission duration so the ActionList context
 survives.
 
@@ -50,7 +50,7 @@ baseline filesystem policy, which is a real widening. Expose notebooks with
 what a policy *would* block without blocking the mission. It reads logs via
 `openshell logs --source sandbox` and OCSF export, and it may propose policy
 changes through Policy Advisor, but a human approves them from outside the
-sandbox. Red never gets `policy set` rights.
+sandbox. Yellow never gets `policy set` rights.
 
 **train.** Uses a custom CUDA image from your registry (`--from
 registry.example.com/cast-tuning:tag`), `--gpu N`, and a large `--memory`.

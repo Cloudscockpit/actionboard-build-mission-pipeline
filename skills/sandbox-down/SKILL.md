@@ -35,5 +35,5 @@ Before any delete:
    in `/workspace`, not what the agent scattered elsewhere.
 3. Confirm. Delete is irreversible and purges credentials.
 
-Yellow Agent sandboxes are deleted rather than recycled once the ActionList
+Red Agent sandboxes are deleted rather than recycled once the ActionList
 completes — a reused write-capable sandbox destroys the per-ActionList audit trail.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PostToolUse: append every OpenShell policy mutation to a local audit log.
-# Red Agent reads this; it is also the paper trail when a grant is questioned later.
+# Yellow Agent reads this; it is also the paper trail when a grant is questioned later.
 # Never blocks and never fails the tool call.
 
 set -uo pipefail

@@ -43,7 +43,7 @@ harness can be found, metered, and torn down as a unit.
    destinations. This is the last cheap moment to catch an over-wide grant.
 
 5. **Gate.** Wait for explicit approval. Then create in dependency order — Black
-   first so the orchestrator is live before its workers, Red last so it observes a
+   first so the orchestrator is live before its workers, Yellow last so it observes a
    fully assembled harness.
 
    ```bash
@@ -66,7 +66,7 @@ harness can be found, metered, and torn down as a unit.
   the per-tenant metering the labels carry.
 - Every sandbox gets `tenant`, `pod`, `agent`, and `mission` labels. Everything
   downstream — billing, forensics, teardown — is a selector query over these.
-- Yellow's sandbox is the only one with write access, and it is deleted rather
+- Red's sandbox is the only one with write access, and it is deleted rather
   than recycled when its ActionList completes.
 - If any Agent's provision fails, report which succeeded and which did not, and
   stop. A partially formed harness runs a mission with a silently missing Agent.
