@@ -245,7 +245,13 @@ def main():
     except json.JSONDecodeError as exc:
         raise SystemExit(f"Registry is not valid JSON: {exc}")
 
-    actions = registry.get("actions", registry if isinstance(registry, list) else [])
+    # A registry is normally an object with an "actions" array; a bare array of
+    # actions is also accepted. Check the type before calling .get(), which a
+    # list does not have.
+    if isinstance(registry, dict):
+        actions = registry.get("actions", [])
+    else:
+        actions = registry if isinstance(registry, list) else []
     if args.mission:
         actions = [a for a in actions if args.mission in a.get("missions", [])]
 
