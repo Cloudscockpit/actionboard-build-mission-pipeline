@@ -1,0 +1,38 @@
+# Blue Agent — analysis. Read-only sources plus local inference routing.
+#
+# BINARY PATHS: the base image ships Python via uv, not in /usr/bin. Binary
+# binding matches the RESOLVED executable, not the shim you invoke, so the
+# interpreter below must be the readlink -f target -- binding the venv shim
+# alone yields "Tunnel connection failed: 403 Forbidden".
+#   /usr/local/bin/python3 -> /sandbox/.venv/bin/python3 -> the path below
+# That path embeds the Python version AND CPU arch, so re-verify after any
+# base-image bump:
+#   openshell sandbox exec -n <sandbox> -- readlink -f /usr/local/bin/python3
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace]
+landlock:
+  compatibility: best_effort
+network_policies:
+  packages:
+    name: packages
+    endpoints:
+      - { host: pypi.org, port: 443 }
+      - { host: files.pythonhosted.org, port: 443 }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/pip }
+      - { path: /usr/local/bin/uv }
+  read_sources:
+    name: read-sources
+    endpoints:
+      - host: REPLACE_SOURCE_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: read-only
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }

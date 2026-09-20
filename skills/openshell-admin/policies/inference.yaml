@@ -1,0 +1,10 @@
+# Local inference server (Ollama / vLLM). No external egress; other sandboxes
+# reach it through inference.local routing, not a direct network allow.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace, /root/.ollama]
+landlock:
+  compatibility: best_effort
+network_policies: {}

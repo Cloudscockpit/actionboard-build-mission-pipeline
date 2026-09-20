@@ -1,0 +1,26 @@
+# Red Agent — the only agent that mutates. enforce, explicit per-path allow,
+# destructive subtrees denied even when no allow rule reaches them.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace]
+landlock:
+  compatibility: best_effort
+network_policies:
+  target_api:
+    name: target-api
+    endpoints:
+      - host: REPLACE_TARGET_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/**" }
+          - allow: { method: POST, path: "REPLACE_WRITE_PATH" }
+        deny_rules:
+          - { method: POST,   path: "/admin/**" }
+          - { method: DELETE, path: "/**" }
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/local/bin/claude }

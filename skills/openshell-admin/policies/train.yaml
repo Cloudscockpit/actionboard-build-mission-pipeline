@@ -1,0 +1,17 @@
+# CAST / fine-tuning runs. Model registry + object store only.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace, /data]
+landlock:
+  compatibility: best_effort
+network_policies:
+  registry:
+    name: model-registry
+    endpoints:
+      - { host: REPLACE_REGISTRY_HOST, port: 443 }
+      - { host: REPLACE_OBJECT_STORE_HOST, port: 443 }
+    binaries:
+      - { path: /usr/bin/python3 }
+      - { path: /usr/local/bin/aws }

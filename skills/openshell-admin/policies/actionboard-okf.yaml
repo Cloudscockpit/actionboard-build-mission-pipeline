@@ -1,0 +1,106 @@
+# Actionboard OKF ingest — Red Agent (action profile).
+#
+# Reads board content from the Actionboard KB bucket, converts to OKF, and
+# uploads back under the same prefix. Verified against sandbox
+# yellow-ab-okf-01 (gateway policy version 6, hash c23565992673).
+#
+# Bucket was confirmed empirically, not assumed:
+#   actionboard-kb-singapore  -> PremiumBoardKB/Boards/Investor+Board/  (ap-southeast-1)
+#   actionboard-kb-agent      -> PremiumBoardKB/Boards/Investor Board/  (us-east-1)
+# Both spellings exist in different buckets/regions. S3_PREFIX uses the '+'
+# form, which is the Singapore bucket. Do not substitute one for the other.
+#
+# Credentials are NOT in this file and must never be. Attach at create time:
+#   openshell provider create --name actionboard-s3 --type aws-s3 --from-existing
+#   openshell sandbox create ... --provider actionboard-s3
+# The aws-s3 profile signs SigV4 at the gateway, so no AWS key enters the sandbox.
+# Reads Actionboard S3 + AppSync, converts to OKF, uploads back to the S3 prefix.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace, /dev/null]
+landlock:
+  compatibility: best_effort
+network_policies:
+  packages:
+    name: packages
+    endpoints:
+      - { host: pypi.org, port: 443 }
+      - { host: files.pythonhosted.org, port: 443 }
+      - { host: registry.npmjs.org, port: 443 }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/pip }
+      - { path: /usr/local/bin/uv }
+      - { path: /usr/bin/npm }
+  actionboard_s3:
+    name: actionboard-s3
+    endpoints:
+      # Bucket confirmed: actionboard-kb-singapore (ap-southeast-1), verified via list-objects-v2.
+      - host: "actionboard-kb-singapore.s3.ap-southeast-1.amazonaws.com"
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/" }   # ListObjectsV2 (bucket-scoped discovery)
+          - allow: { method: GET,  path: "/PremiumBoardKB/Boards/Investor+Board/**" }
+          - allow: { method: HEAD, path: "/PremiumBoardKB/Boards/Investor+Board/**" }
+          - allow: { method: PUT,  path: "/PremiumBoardKB/Boards/Investor+Board/**" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: PUT,    path: "/PremiumBoardKB/Boards/Investor+Board/../**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+  actionboard_appsync:
+    name: actionboard-appsync
+    endpoints:
+      - host: eyfwi6h3kfhhhevfqjvwkf762q.appsync-api.ap-southeast-1.amazonaws.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/graphql" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+  actionboard_pod:
+    name: actionboard-pod
+    endpoints:
+      - host: genai.actionboard.com.bd
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/**" }
+          - allow: { method: POST, path: "/pods/pod-free-001/chat" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: POST,   path: "/admin/**" }
+      - { host: genai.actionboard.com.bd, port: 9200, protocol: rest, enforcement: enforce, access: read-only }
+      - { host: api-billing.actionboard.ai, port: 443, protocol: rest, enforcement: enforce, access: read-only }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+  actionboard_auth:
+    name: actionboard-auth
+    endpoints:
+      - host: absaas-dev.auth.ap-southeast-1.amazoncognito.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/oauth2/token" }
+          - allow: { method: GET,  path: "/oauth2/**" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }

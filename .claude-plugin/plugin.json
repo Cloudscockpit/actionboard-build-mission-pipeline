@@ -1,8 +1,8 @@
 {
   "name": "actionboard-v5-agentformation",
   "displayName": "ActionBoard-V5-AgentFormation",
-  "version": "0.5.0",
-  "description": "Turn one objective into a reviewed plan, then execute it with five parallel agents that never touch the same file. Nothing runs until you approve. Actions are risk-classified and gated on scored run history, so nothing executes autonomously until it has proven it can. Briefs, plans, and reports export as Markdown plus schema.org JSON-LD, so a directory of missions becomes a queryable history.",
+  "version": "0.6.0",
+  "description": "Turn one objective into a reviewed plan, then execute it with five parallel agents that never touch the same file. Nothing runs until you approve. Actions are risk-classified and gated on scored run history, so nothing executes autonomously until it has proven it can. Each agent can run in a kernel-isolated OpenShell sandbox with deny-all egress and a policy audit trail. Briefs, plans, and reports export as Markdown plus schema.org JSON-LD, so a directory of missions becomes a queryable history.",
   "author": {
     "name": "jarjis imam",
     "email": "jarjis@actionboard.ai"
@@ -21,6 +21,10 @@
     "schema-org",
     "maturity-gate",
     "devops",
-    "risk-classification"
+    "risk-classification",
+    "openshell",
+    "sandbox",
+    "agent-isolation",
+    "policy"
   ]
 }

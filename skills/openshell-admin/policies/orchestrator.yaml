@@ -1,0 +1,20 @@
+# Black Agent — orchestration only. Model endpoint + pod control API. No writes.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp]
+landlock:
+  compatibility: best_effort
+network_policies:
+  pod_control:
+    name: pod-control
+    endpoints:
+      - host: REPLACE_POD_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: read-only
+    binaries:
+      - { path: /usr/bin/curl }
+      - { path: /usr/local/bin/claude }

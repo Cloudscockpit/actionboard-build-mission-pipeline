@@ -70,6 +70,33 @@ stops at go/no-go, and `edit <section>` lets you fix one table without redoing t
 | **Blue** | Data & integrations — APIs, schemas, plumbing. |
 | **Green** | Acquire knowledge & data — codebase analysis, read-only (graphify-aware). |
 | **Yellow** | Quality & defense — tests, security, verification. |
+| `sandbox-warden` | Owns OpenShell sandbox lifecycle — provisioning, policy iteration, teardown. |
+
+## Sandbox isolation
+
+Each agent can run inside a kernel-isolated OpenShell sandbox with deny-all egress
+and a policy audit trail. The profile an agent gets is what grants or withholds the
+ability to mutate real systems, so the mapping matters:
+
+| Agent | Profile | Policy | Can mutate? |
+|---|---|---|---|
+| Black | `orchestrator` | `orchestrator.yaml` | No — model endpoint and pod control only |
+| Green | `data` | `data.yaml` | No — read-only REST on data sources |
+| Blue | `analysis` | `analysis.yaml` | No — read-only plus local inference |
+| **Red** | `action` | `action.yaml` | **Yes** — `enforcement: enforce`, explicit per-path allow |
+| Yellow | `defense` | `defense.yaml` | No — read-only, `enforcement: audit` |
+
+Red is the only agent that mutates, which follows from its role: it writes code and
+ships implementations. Yellow reviews and verifies, so it gets read-only with audit
+enforcement — it observes what *would* have been denied without blocking.
+
+> **Note for anyone porting policies from the standalone OpenShell plugin:** that
+> plugin bound `action` to Yellow and `defense` to Red — the reverse of the agent
+> roles here. The policy files themselves are unchanged; only the agent each one is
+> assigned to was corrected. Check any policy you carry over against this table.
+
+Three non-agent profiles also ship: `train` (GPU, registry + object store only),
+`inference` (local model server), and `scratch` (untrusted code, no egress at all).
 
 ## Installation
 
@@ -181,6 +208,11 @@ To register a new action type, edit `actions-map.json`, bump the plugin version,
 | `skills-registry` | The actions map — which Agent handles what, and what it needs |
 | `browser-actions` | Conduct rules for driving a real browser during a mission |
 | `actionboard-devops-mission` | Run a maturity-gated DevOps mission — register actions, classify risk, score the five stages, enforce the formation gate |
+| `mission-harness` | Build the sandbox harness for a mission — one isolated environment per agent |
+| `openshell-admin` | Provision and govern OpenShell sandboxes, workspaces, and policies |
+| `sandbox-up` / `sandbox-down` | Provision or tear down a sandbox for an agent or usecase |
+| `sandbox-status` | Show sandboxes for a mission, tenant, or agent with phase and policy |
+| `policy-widen` | Triage a denial and add the narrowest rule that fixes it |
 
 ## Browser actions in missions
 
@@ -214,12 +246,16 @@ single-plugin marketplace pointing at itself (`"source": "./"`).
 .claude-plugin/
   plugin.json         the plugin manifest
   marketplace.json    the marketplace manifest
-agents/               black-agent + the four Agents
 commands/             /start-mission
+agents/               black · green · blue · red · yellow + sandbox-warden
+hooks/                PreToolUse/PostToolUse Bash guards for sandbox policy
 skills/               mission-brief, mission-plan, mission-report,
                       skills-registry, browser-actions,
                       actionboard-devops-mission (scripts/, references/,
-                      assets/, docs/)
+                      assets/, docs/),
+                      mission-harness, openshell-admin (policies/, scripts/,
+                      references/), sandbox-up, sandbox-down, sandbox-status,
+                      policy-widen
 kb/                   knowledge base the skills read at runtime
 ```
 
