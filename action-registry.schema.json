@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ActionBoard action registry",
+  "description": "Registered actions with risk classification and scored run history. Consumed by scripts/gate_check.py.",
+  "type": "object",
+  "required": [
+    "actions"
+  ],
+  "properties": {
+    "registry_version": {
+      "type": "string"
+    },
+    "tenant": {
+      "type": "string"
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "risk_tier",
+        "end_condition"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pattern_id": {
+          "type": "string",
+          "description": "Action Graph pattern this action belongs to. Match on this before registering \u2014 re-registering an existing pattern resets its history and its eligibility."
+        },
+        "missions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_tier": {
+          "enum": [
+            "T1",
+            "T2",
+            "T3",
+            "T4"
+          ]
+        },
+        "risk_scores": {
+          "type": "object",
+          "description": "Per-dimension scores 1-4. The tier is the highest score, never the average.",
+          "properties": {
+            "reversibility": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "blast_radius": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "data_sensitivity": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            "reasoning_fragility": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          }
+        },
+        "risk_rationale": {
+          "type": "string",
+          "description": "Why this tier. A tier without a rationale cannot be challenged and will drift."
+        },
+        "policy_restricted": {
+          "type": "boolean",
+          "description": "True forces T4 regardless of scores. Set for identity, key material, funds movement, unrecoverable deletion, audit/monitoring changes, or anything carrying a disclosure obligation."
+        },
+        "end_condition": {
+          "type": "string",
+          "description": "How the action is verified done. Must be checkable as true or false."
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "data_touched": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rollback": {
+          "type": "string"
+        },
+        "registered_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "registered_by": {
+          "type": "string"
+        },
+        "regressed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "Set when a live pattern drops below threshold. Clears only after full re-qualification."
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/run"
+          }
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "completed_at",
+        "mode",
+        "stages"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "mode": {
+          "enum": [
+            "guided",
+            "actionlist",
+            "formation"
+          ]
+        },
+        "operator": {
+          "type": "string"
+        },
+        "operator_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Runs sharing a session are not independent evidence. Never promote an action on same-session runs alone."
+        },
+        "stages": {
+          "type": "object",
+          "description": "Per-stage pass/fail. A stage that cannot be scored is false, not absent \u2014 omitting it is counted as a failure by the gate.",
+          "required": [
+            "orchestrator",
+            "data",
+            "analysis",
+            "action",
+            "defense"
+          ],
+          "properties": {
+            "orchestrator": {
+              "type": "boolean"
+            },
+            "data": {
+              "type": "boolean"
+            },
+            "analysis": {
+              "type": "boolean"
+            },
+            "action": {
+              "type": "boolean"
+            },
+            "defense": {
+              "type": "boolean"
+            }
+          }
+        },
+        "first_attempt": {
+          "type": "boolean",
+          "description": "False when the run only went green on retry. Retry-to-green scores the stage as failed."
+        },
+        "aborted": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "object",
+          "description": "Captured so a regression can be traced to what changed.",
+          "properties": {
+            "model": {
+              "type": "string"
+            },
+            "model_version": {
+              "type": "string"
+            },
+            "skill_version": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          }
+        },
+        "provenance": {
+          "enum": [
+            "scored",
+            "backfilled"
+          ],
+          "description": "backfilled runs come from git or CI history and are excluded from the clean-run count: CI proves the job exited zero, not that the other four stages were correct."
+        }
+      }
+    }
+  }
+}
