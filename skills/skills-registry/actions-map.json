@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "ActionBoard V5 AgentFormation actions map \u2014 which Agent handles which action type, and what each action requires. Consumed by the skills-registry skill during Skills Gap analysis (mission Step 4).",
   "actionTypes": [
     {
@@ -183,6 +183,34 @@
       ],
       "requires": "a mission-plan document must exist first \u2014 the report resolves its assignments, it does not create them",
       "status": "covered"
+    },
+    {
+      "action": "remote-gateway-connect",
+      "agent": "black-agent",
+      "description": "Register and authenticate this machine to a remote ActionBoard cloud OpenShell gateway, then verify the identity the gateway actually sees. Gates every later sandbox action on that gateway \u2014 dependsOn: nothing, but remote-mission-execution dependsOn this.",
+      "requiredTools": [
+        "Skill",
+        "Bash"
+      ],
+      "skills": [
+        "pod-connect"
+      ],
+      "requires": "operator-supplied gateway URL and OIDC issuer \u2014 no endpoint, issuer, or pool default ships with this plugin; a freshly minted one-time token supplied via the ACTIONBOARD_POD_TOKEN env var or --token-stdin, never argv; the token is consumed by the first successful connect, so any retry needs a new one; user confirmation of the --dry-run plan before anything is registered; success is `openshell whoami` plus a non-empty `workspace list`, not a zero exit code",
+      "status": "conditional"
+    },
+    {
+      "action": "remote-mission-execution",
+      "agent": "black-agent",
+      "description": "Run a mission's sandbox harness against a remote gateway instead of the local daemon \u2014 one sandbox per assigned Agent, created on cloud compute and labelled with the ActionBoard pod. dependsOn: remote-gateway-connect. The skill forks to the sandbox-warden subagent; Black Agent stays the single responsible Agent.",
+      "requiredTools": [
+        "Skill",
+        "Bash"
+      ],
+      "skills": [
+        "mission-harness"
+      ],
+      "requires": "a prior successful remote-gateway-connect on the same machine \u2014 an authenticated, selected gateway and a workspace the subject is a member of; pass --gateway <name> explicitly so the harness cannot drift onto whichever gateway happens to be active; remote refuses local image builds (--image ./dir, Dockerfile) and refuses any policy still holding REPLACE_ placeholders",
+      "status": "conditional"
     }
   ]
 }

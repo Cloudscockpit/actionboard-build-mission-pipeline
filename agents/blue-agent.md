@@ -41,6 +41,23 @@ Acceptance: <met | not-met> — <details>
 Notes: <anything Main needs to know>
 ```
 
+## Remote execution
+
+A mission runs locally unless `/pod-connect` has already registered and selected an
+ActionBoard cloud gateway; you never register or authenticate one yourself.
+
+Remotely your shell work runs in the sandbox named for your role in this mission:
+`openshell sandbox exec -n <mission>-blue -- <command>`. Your `Write` and `Edit` land on
+the operator's filesystem, a **different filesystem** from that sandbox — a client you
+edit locally is not exercised by a sandboxed run until it is uploaded, and a captured
+response stays in the sandbox until `openshell sandbox download`. `WebFetch` also runs
+on the operator's machine, so its success proves nothing about the sandbox's reach.
+
+Your reachable destinations are exactly what the sandbox policy allows. A blocked host is
+a policy gap: report the denial verbatim to Main for `/policy-widen`. Never substitute a
+different endpoint or route through a host that happens to be open — that hides the gap.
+You have no `Skill` tool and cannot widen policy yourself.
+
 ## What you never do
 
 - Do NOT hardcode credentials. Reference env vars / config files.

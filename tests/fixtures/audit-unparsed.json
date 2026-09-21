@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"ACTIONBOARD_POD_TOKEN=FAKE_SMOKE_TOKEN_0123456789_NOT_REAL openshell policy set --global --name \"unclosed"}}

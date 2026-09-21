@@ -19,7 +19,9 @@ During Skills Gap analysis:
 2. For each capability the mission needs, find the closest matching `action` entry:
    - **Exact or close match found, `status: "covered"`** → classify the capability as `covered`, cite the responsible Agent from the entry.
    - **Match found with non-empty `skills` list** → classify as `use-existing-skill <name>` using the first skill in the list; the responsible Agent invokes it.
-   - **Match found with `requires` field** → the capability is conditionally covered. Surface the requirement (e.g., per-site user approval for `live-browser-action`) in the Skills Gap table Notes column.
+   - **Match found with `requires` field** → the capability is conditionally covered. A `conditional` entry counts as `covered` **only once its `requires` is actually met** — until then it is an open precondition, not a solved capability. Surface the requirement (e.g., per-site user approval for `live-browser-action`) in the Skills Gap table Notes column.
+   - **Match found whose `requires` names another action** → that other action is a separate capability and needs its own Skills Gap row, planned and dispatched first. `remote-mission-execution` requires a prior successful `remote-gateway-connect`; classify it `conditional — blocked on remote-gateway-connect` and never mark it covered on the strength of the gateway entry alone. A gateway that is registered but not verified by `openshell whoami` does not satisfy the precondition either.
+   - **Match found whose `requires` names an operator-supplied fact** → the fact is a mission input, not something an Agent can produce. `remote-gateway-connect` needs a gateway URL, an OIDC issuer, and a freshly minted one-time token from the ActionBoard pod console. No endpoint, issuer, or identity-pool default ships with this plugin, and a dev pool is never a substitute. If the operator has not supplied them, the capability is **not** covered — say so in Notes and ask, rather than planning around it.
    - **No match** → classify as `needs-new-skill` and propose a one-line description.
 3. When `skill-creator` scaffolds a new skill mid-mission, append a new entry to the actions map in your Mission Summary so the user can commit it (the plugin's copy of `actions-map.json` is read-only at runtime — registry updates ship with the next plugin version).
 
@@ -37,10 +39,27 @@ Each entry in `actionTypes`:
 | `requires` | Optional precondition outside this action (e.g., per-site approval, or a prior document) |
 | `status` | `covered` \| `conditional` \| `experimental` |
 
+## Remote execution action types
+
+Two entries cover running a mission on a **remote ActionBoard cloud OpenShell gateway** instead of the local daemon. Both are `black-agent` and both are `conditional`.
+
+| Action | Skill | The condition |
+|--------|-------|---------------|
+| `remote-gateway-connect` | `pod-connect` | Operator supplies the gateway URL, the OIDC issuer, and a one-time token; the user confirms the `--dry-run` plan; `openshell whoami` and a non-empty `workspace list` both succeed. |
+| `remote-mission-execution` | `mission-harness` | A prior successful `remote-gateway-connect`, and `--gateway <name>` passed explicitly so the harness cannot drift onto whichever gateway is active. |
+
+Three things to get right about this pair:
+
+- **They are two entries, not one.** Connecting is operator-facing and gates everything after it; running the harness is mission work. Splitting them is what lets a plan show the gateway as its own dispatchable step with its own go/no-go.
+- **The one-time token is consumed by the first successful connect.** A retry needs a fresh token from the pod console. Never plan a step that assumes the token can be reused, and never put it in a command line — it goes in `ACTIONBOARD_POD_TOKEN` or through `--token-stdin`.
+- **Pod, gateway, and workspace are three different things.** The pod is the ActionBoard tenancy and billing label, the gateway is the OpenShell control plane, the workspace is the isolation boundary inside it. A Skills Gap row that conflates them plans a mission into the wrong tenant.
+
+`remote-mission-execution` forks to the `sandbox-warden` subagent, which is why its `requiredTools` are Black Agent's (`Skill`, `Bash`) and not the warden's — the map names the responsible Agent, not every process involved.
+
 ## Answering "what can the Agents do"
 
 When the user asks directly, render the actions map as a table grouped by Agent:
-Agent → Action types → What it needs. Keep it under 30 lines; link to `actions-map.json` for the full data.
+Agent → Action types → What it needs. Keep it under 30 lines; link to `actions-map.json` for the full data. Mark `conditional` entries as conditional in that table — a user reading it as a capability list should not discover the precondition only after the mission starts.
 
 ## Registering a new action type
 

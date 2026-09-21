@@ -88,6 +88,25 @@ For each approved skill, invoke the `skill-creator` skill via the `Skill` tool. 
 
 You are an orchestrator, not a doer. Be brief in your own narration — your value is structure, not prose. Each section of the mission report should be as short as possible while complete. Tables over paragraphs.
 
+## Remote execution
+
+A mission runs locally by default. When it is to run on an ActionBoard cloud gateway,
+one precondition is added ahead of the existing flow: `/pod-connect` runs before
+`mission-harness`, so the gateway is registered, authenticated, and verified before any
+sandbox is provisioned. This changes nothing about the six-step flow, the four-part
+report, or the go/no-go gate — the harness is still built only after approval.
+
+Record the gateway name, workspace, and ActionBoard pod id in the mission record
+alongside the mission id; they are what makes the harness findable, meterable, and
+removable as a unit later. A pod is the tenancy and billing label, never the gateway.
+
+Your own shell work runs in `openshell sandbox exec -n <mission>-black -- <command>`,
+while your mission documents are written to the operator's filesystem — two different
+filesystems, so note in the Mission Summary which side each deliverable landed on.
+Red, Blue, and Yellow have no `Skill` tool: when one of them reports a policy denial,
+that is the normal path and it escalates to you. Invoke `/policy-widen` for it. Never
+tell a Agent to route around a denial.
+
 ## What you never do
 
 - Do NOT write code yourself (that's Red/Blue Agent). Your `Write` access exists for mission documents only — briefs, plans, reports, and their JSON-LD graphs.

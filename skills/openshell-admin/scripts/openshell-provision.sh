@@ -7,7 +7,19 @@
 #   ./openshell-provision.sh --usecase data --name green-ingest-01 \
 #       --workspace tenant-acme --tenant acme --pod acme-prod --mission m-4471
 #
+#   ./openshell-provision.sh --usecase action --name red-act-01 \
+#       --gateway actionboard-cloud --image registry.example/actionboard/base:1.4
+#
 # Always run with --dry-run first and show the plan before creating anything.
+#
+# --gateway names the OpenShell control plane. --pod is an ActionBoard tenancy
+# label and nothing else; the two are never interchangeable. Connect a cloud
+# gateway with /pod-connect before provisioning against it.
+#
+# Against a remote or cloud gateway this wrapper refuses two things the CLI
+# would otherwise attempt on the LOCAL Docker daemon -- a `--image ./dir` and a
+# Dockerfile build -- and refuses a policy that still carries REPLACE_
+# placeholders. Both stay warnings on a local gateway.
 
 set -euo pipefail
 
@@ -35,7 +47,9 @@ required:
 
 targeting:
   --workspace <w>        workspace (default: $OPENSHELL_WORKSPACE or "default")
-  --gateway <g>          select this gateway before creating
+  --gateway <g>          gateway to target and select before creating
+                         (default: $OPENSHELL_GATEWAY, $ACTIONBOARD_GATEWAY_NAME,
+                          else the currently active gateway)
 
 overrides (profile supplies defaults):
   --image <ref>          --from value: base | ollama | ./dir | registry/img:tag
@@ -43,10 +57,13 @@ overrides (profile supplies defaults):
   --memory <q>           512Mi | 4Gi | 64G
   --gpu <n>              GPU count (omit value on the profile to disable)
   --agent <cmd>          trailing agent command (default: claude, or none)
+                         split on whitespace; not glob-expanded, and quotes
+                         inside it are not honoured
   --policy <file>        policy YAML, overrides the profile template
 
 metering labels (all four recommended):
   --tenant <t> --pod <p> --mission <m> --agent-role <black|green|blue|yellow|red>
+  --pod is the ActionBoard tenancy label only. It is not the gateway.
 
 extras (repeatable):
   --provider <name>      attach credential provider (use this, not --env)
@@ -95,6 +112,41 @@ done
 [[ -n "$USECASE" ]] || usage
 [[ -n "$NAME" ]] || usage
 
+# ---------- gateway resolution -------------------------------------------
+# `gateway list` reads local registrations only -- no network, safe in --dry-run.
+GATEWAY="${GATEWAY:-${OPENSHELL_GATEWAY:-${ACTIONBOARD_GATEWAY_NAME:-}}}"
+
+gw_field() {
+  command -v openshell >/dev/null 2>&1 || return 0
+  openshell gateway list --output json 2>/dev/null \
+    | GW="$GATEWAY" FIELD="$1" python3 -c 'import json,os,sys
+gw, field = os.environ["GW"], os.environ["FIELD"]
+try:
+    rows = json.load(sys.stdin)
+except Exception:
+    raise SystemExit
+if isinstance(rows, dict):
+    rows = rows.get("gateways") or rows.get("items") or []
+for r in rows:
+    if (r.get("name") == gw) if gw else bool(r.get("active")):
+        v = r.get(field)
+        print("" if v is None else str(v).lower() if isinstance(v, bool) else v)
+        break' 2>/dev/null
+}
+
+RESOLVED_GATEWAY="${GATEWAY:-$(gw_field name)}"
+GW_TYPE="$(gw_field type)"
+GW_AUTH="$(gw_field auth)"
+GW_REMOTE="$(gw_field is_remote)"
+
+REMOTE=0
+[[ "$GW_REMOTE" == "true" ]] && REMOTE=1
+case "$GW_TYPE" in remote|cloud) REMOTE=1 ;; esac
+case "$GW_AUTH" in oidc|edge_bearer|edge) REMOTE=1 ;; esac
+
+GW_LABEL="${RESOLVED_GATEWAY:-<none registered>}"
+[[ "$REMOTE" -eq 1 ]] && GW_LABEL="$GW_LABEL (remote)"
+
 # ---------- profile resolution -------------------------------------------
 p_image="base"; p_cpu="2"; p_mem="4Gi"; p_gpu=""; p_policy=""; p_agent="claude"; p_agent_role=""
 
@@ -121,7 +173,17 @@ if [[ -z "$POLICY" ]]; then
 fi
 [[ -f "$POLICY" ]] || die "policy template not found: $POLICY"
 
+if [[ "$REMOTE" -eq 1 ]]; then
+  case "$IMAGE" in
+    ./*|../*|/*|.|Dockerfile|*/Dockerfile|*.Dockerfile)
+      die "refusing --image $IMAGE against remote gateway '$RESOLVED_GATEWAY': a local directory or Dockerfile is built by the CLI on THIS machine's Docker daemon, which the remote gateway cannot see. Push the image and pass a registry reference instead, e.g. --image registry.example/org/img:tag" ;;
+  esac
+fi
+
 if grep -q 'REPLACE_' "$POLICY"; then
+  if [[ "$REMOTE" -eq 1 ]]; then
+    die "$POLICY still contains REPLACE_ placeholders; refusing to create against remote gateway '$RESOLVED_GATEWAY'. On a shared cloud gateway an unfilled policy is a sandbox that looks ready and can reach nothing. Fill in the real hosts/paths first."
+  fi
   log "WARNING: $POLICY still contains REPLACE_ placeholders."
   log "         Fill in the real hosts/paths before this sandbox can reach anything."
 fi
@@ -157,7 +219,14 @@ done
 #   error: the argument '--output <OUTPUT>' cannot be used with '[COMMAND]...'
 # Request structured output only when no agent command is appended.
 if [[ -n "$AGENT" ]]; then
-  CMD+=(-- $AGENT)
+  # Word-split --agent (intentional: it may be a multi-word command) but do NOT
+  # glob it. read -ra splits on IFS with pathname expansion off. The command
+  # runs INSIDE the sandbox, so a `*` expanded here would expand against the
+  # caller's cwd -- the wrong filesystem, and against a cloud gateway a
+  # different machine entirely. Quoting inside --agent is not honoured; pass a
+  # single word and let the sandbox's own shell do the rest.
+  read -ra AGENT_ARGV <<<"$AGENT"
+  CMD+=(-- ${AGENT_ARGV[@]+"${AGENT_ARGV[@]}"})
 else
   CMD+=(--output json)
 fi
@@ -168,7 +237,7 @@ cat >&2 <<PLAN
   ----
   usecase    $USECASE            agent       ${AGENT_ROLE:-n/a}
   sandbox    $NAME               workspace  ${WORKSPACE:-${OPENSHELL_WORKSPACE:-default}}
-  image      $IMAGE              gateway    ${GATEWAY:-<active>}
+  image      $IMAGE              gateway    $GW_LABEL
   cpu        $CPU                memory     $MEMORY
   gpu        ${GPU:-none}        keep       $([[ $KEEP -eq 1 ]] && echo yes || echo no)
   policy     $POLICY
@@ -188,18 +257,25 @@ fi
 # ---------- preflight -----------------------------------------------------
 command -v openshell >/dev/null 2>&1 || die "openshell CLI not found in PATH"
 [[ -n "$GATEWAY" ]] && openshell gateway select "$GATEWAY"
-openshell whoami --output json >/dev/null || die "gateway auth failed; run: openshell whoami"
+openshell whoami --output json >/dev/null 2>&1 || die "gateway '${RESOLVED_GATEWAY:-<none>}' has no validated identity. Authenticate it: openshell gateway login ${RESOLVED_GATEWAY:-<name>} -- or, for an ActionBoard cloud pod, run /pod-connect. (Do not re-run whoami; whoami is the call that just failed.)"
 
 # ---------- create --------------------------------------------------------
 log "creating sandbox $NAME ..."
 "${CMD[@]}"
 
 # ---------- wait for Ready ------------------------------------------------
+# Expanded below as ${WS_ARGS[@]+"${WS_ARGS[@]}"}, not "${WS_ARGS[@]}": on bash
+# 3.2 -- /bin/bash on macOS -- the plain form aborts with "unbound variable"
+# under `set -u` when the array is empty, which is the no---workspace case. The
+# ${a[@]:-} form survives set -u but passes a stray empty argument to the CLI;
+# the +-form expands to nothing at all. The sandbox is already created by this
+# point, so an abort here strands a billable sandbox the operator is told
+# timed out.
 WS_ARGS=()
 [[ -n "$WORKSPACE" ]] && WS_ARGS=(--workspace "$WORKSPACE")
 
 phase_of() {
-  openshell sandbox get "$NAME" "${WS_ARGS[@]}" --output json 2>/dev/null \
+  openshell sandbox get "$NAME" ${WS_ARGS[@]+"${WS_ARGS[@]}"} --output json 2>/dev/null \
     | python3 -c 'import json,sys
 try:
     d = json.load(sys.stdin)

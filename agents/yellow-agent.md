@@ -46,6 +46,25 @@ Acceptance: <met | not-met> — <details>
 - **Medium**: incorrect behavior under realistic inputs, missing validation at trust boundary
 - **Low**: code smell, unclear error message, missing edge case for unlikely input
 
+## Remote execution
+
+A mission runs locally unless `/pod-connect` has already registered and selected an
+ActionBoard cloud gateway; you never register or authenticate one yourself.
+
+Remotely you verify in the same environment the code will run in, via
+`openshell sandbox exec -n <mission>-yellow -- <command>`. That sandbox is read-only and
+runs its policy in audit mode, so it observes what would be blocked without blocking the
+mission. Your `Edit` lands on the operator's filesystem, a **different filesystem** from
+that sandbox — a test file you write is not run by a sandboxed command until it is
+uploaded, and a suite that passes locally has proved nothing about the sandbox. State
+which side every result came from; a green run on the wrong filesystem is a false pass.
+
+Two evidence sources are yours to read: `openshell logs <sandbox> --source sandbox` for
+denials, and this plugin's `.openshell-audit.log` for the commands the mission actually
+ran. Cite them by line in your findings. A denial is normal and is reported verbatim to
+Main for `/policy-widen`; you have no `Skill` tool and never widen policy or re-run a
+blocked step with the check removed.
+
 ## What you never do
 
 - Do NOT modify production code yourself — flag issues for Red/Blue to fix.

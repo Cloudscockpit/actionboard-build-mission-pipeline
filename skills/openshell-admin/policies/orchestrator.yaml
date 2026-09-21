@@ -1,4 +1,39 @@
 # Black Agent — orchestration only. Model endpoint + pod control API. No writes.
+#
+# NAMING — two unrelated things are called "pod" in this stack. In THIS file
+# "pod" always means the ActionBoard tenancy/billing pod (the thing behind
+# `--pod` / `--label pod=`, e.g. pod-free-001). It never means the OpenShell
+# gateway the CLI authenticates to, and it never means a Kubernetes pod.
+#
+# This policy governs EGRESS from the sandbox. It says nothing about which
+# gateway provisioned that sandbox; a local gateway and the ActionBoard cloud
+# gateway both enforce this same file.
+#
+# REPLACE_POD_HOST is unresolved ON PURPOSE. A shipped template must never
+# point at production by default, and the remote/cloud path treats a surviving
+# REPLACE_ token as a hard failure rather than a warning.
+#
+#   Intended value: the ActionBoard pod control-plane API host.
+#   Verified example, already in use in this repo:
+#       genai.actionboard.com.bd    (see policies/actionboard-okf.yaml:75,
+#                                    block actionboard_pod, port 443)
+#   That host is the ActionBoard cloud pod API. Confirm the mission is
+#   actually targeting it — a tenant on another ActionBoard deployment has a
+#   different host — then resolve the placeholder before creating a sandbox.
+#
+# To resolve, pick one (in order of preference):
+#   1. Copy the template and edit it, then pass the copy:
+#        cp policies/orchestrator.yaml /tmp/orchestrator.black.yaml
+#        sed -i '' 's/REPLACE_POD_HOST/genai.actionboard.com.bd/' \
+#          /tmp/orchestrator.black.yaml
+#        scripts/openshell-provision.sh --usecase orchestrator \
+#          --name black-agent-01 --policy /tmp/orchestrator.black.yaml
+#   2. Create with no egress and widen against the first observed denial:
+#        openshell policy update <name> \
+#          --add-endpoint <pod-api-host>:443:read-only:rest:enforce \
+#          --binary /usr/bin/curl --wait
+# Do not resolve it by widening: read-only + enforce is the shape Black needs.
+# If the plan calls for a mutation, that step belongs to Red, not here.
 version: 1
 filesystem_policy:
   include_workdir: true
@@ -10,6 +45,8 @@ network_policies:
   pod_control:
     name: pod-control
     endpoints:
+      # ActionBoard pod control-plane API. read-only: Black reads mission and
+      # pod state, it never posts to it.
       - host: REPLACE_POD_HOST
         port: 443
         protocol: rest

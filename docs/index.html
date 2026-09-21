@@ -380,7 +380,7 @@
   <header class="hero">
     <div class="wordmark">
       <span class="v">ActionBoard V5 AgentFormation</span>
-      <span class="ver">v0.4.1 · MIT</span>
+      <span class="ver">v0.7.0 · MIT</span>
     </div>
 
     <p class="thesis">
@@ -401,7 +401,7 @@
     <div class="meta-row">
       <span><i class="dot"></i>Claude Code</span>
       <span><i class="dot"></i>Claude Cowork</span>
-      <span>6 skills · 5 agents</span>
+      <span>13 skills · 5 agents</span>
       <span>~1,250 tokens always-on</span>
     </div>
   </header>
@@ -491,6 +491,69 @@
         <div class="tag">Yellow</div>
         <p>Quality and defense. Tests, verification, security review.</p>
       </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Isolation · local or cloud</div>
+    <h2>Agents can run in sandboxes, here or in the cloud</h2>
+    <p class="lede">
+      Each Agent can be handed a kernel-isolated OpenShell sandbox with deny-all egress and a
+      policy audit trail. Red is the only one that gets write access; Yellow watches in audit
+      mode. The gateway that creates those sandboxes can sit on this machine or in the
+      ActionBoard cloud — the same skills drive both, and local is not going anywhere.
+    </p>
+
+    <div class="split">
+      <div class="panel">
+        <div class="panel-title"><h3>Local gateway</h3><span class="badge">Default</span></div>
+        <p>One sandbox per Agent, provisioned and torn down as a set. Nothing leaves the machine.</p>
+        <pre><code>/sandbox-up action red-agent-01
+/sandbox-status mission=m-4471
+/sandbox-down mission=m-4471 delete</code></pre>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><h3>ActionBoard cloud pod</h3><span class="badge">New in 0.7.0</span></div>
+        <p>
+          <code>/pod-connect</code> registers the cloud gateway, completes a headless OIDC
+          exchange with a one-time token, and verifies the identity the gateway actually sees
+          before a single sandbox is created.
+        </p>
+        <pre><code><span class="c"># silent prompt: no echo, no argv, no shell history</span>
+read -rs ACTIONBOARD_POD_TOKEN &amp;&amp; export ACTIONBOARD_POD_TOKEN
+
+/pod-connect https://&lt;your-gateway&gt; &lt;pod-id&gt;</code></pre>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:1.5rem">
+      <strong>The one-time token never goes in a command line.</strong> argv is recorded by
+      shell history, by <code>ps</code>, and by the plugin's own audit hook. Prompt for it with
+      <code>read -rs</code>, which is the recommended form; the alternatives are
+      <code>export ACTIONBOARD_POD_TOKEN="$(pbpaste)"</code> and piping it from a password
+      manager into <code>--token-stdin</code>.
+    </div>
+
+    <div class="note" style="margin-top:1rem">
+      <strong>“Not recorded” is a claim about the audit hook, not about your shell.</strong>
+      A bare <code>read</code> or <code>export</code> line contains no <code>openshell</code>
+      substring, so the plugin's audit hook never matches it and nothing reaches
+      <code>.openshell-audit.log</code>. Your shell still appends the line you typed to
+      <code>~/.zsh_history</code> — a token spelled out after <code>export
+      ACTIONBOARD_POD_TOKEN=</code> is in your history verbatim. That is exactly why the token
+      is typed at the <code>read -rs</code> prompt instead of on the command line.
+    </div>
+
+    <div class="note" style="margin-top:1rem">
+      <strong>The hooks that protect this run from the installed copy.</strong> The gateway
+      URL, the OIDC issuer, and the token all come from your ActionBoard pod console; no
+      endpoint and no issuer ships as a default. A PreToolUse hook denies a credential in argv
+      and a PostToolUse hook redacts one before it reaches the audit log — but both execute
+      from the <em>installed</em> plugin, not from your checkout. After any change or version
+      bump, reinstall and confirm with
+      <code>grep -h HOOK_CONTRACT_VERSION ~/.claude/plugins/marketplaces/*/hooks/*.sh</code>:
+      two lines carrying the version you installed. No output means the old, unredacted hooks
+      are still the ones running.
     </div>
   </section>
 
@@ -721,6 +784,10 @@ claude --plugin-dir . -p "list your actionboard-v5-agentformation skills"</code>
             <td>Users stay on the old version</td>
             <td>Pushed without bumping <code>version</code>. The field pins the plugin.</td>
           </tr>
+          <tr>
+            <td>An edit changes nothing</td>
+            <td>The plugin runs from <code>~/.claude/plugins/</code>, not from your clone. Update or reinstall it after any change — the OpenShell hooks especially.</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -860,7 +927,7 @@ claude --plugin-dir . -p "list your actionboard-v5-agentformation skills"</code>
     <div class="foot-grid">
       <div>
         <div class="repo">github.com/Cloudscockpit/actionboard-build-mission-pipeline</div>
-        <div style="margin-top:0.35rem">MIT · v0.4.1 · 6 skills, 5 agents</div>
+        <div style="margin-top:0.35rem">MIT · v0.7.0 · 13 skills, 5 agents</div>
       </div>
       <div style="text-align:right">
         <div>Built for Claude Code and Claude Cowork</div>

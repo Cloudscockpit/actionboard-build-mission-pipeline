@@ -1,2 +1,7 @@
 .DS_Store
 .claude/
+
+# Generated at repo root by the PostToolUse hook (hooks/audit-policy.sh) on
+# every OpenShell state mutation. It is a local paper trail, it is machine
+# specific, and it records command text -- never commit it.
+.openshell-audit.log

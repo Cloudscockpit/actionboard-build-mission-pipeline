@@ -9,6 +9,9 @@ The user has invoked ActionBoard V5-Agents to lead a mission. The mission object
 
 **$ARGUMENTS**
 
+A mission runs locally by default, or on a remote ActionBoard cloud gateway. The remote
+path starts with `/pod-connect`, before any sandbox is provisioned.
+
 Invoke the `black-agent` agent via the `Agent` tool with the following prompt:
 
 > You are receiving a new mission. The objective is: **$ARGUMENTS**

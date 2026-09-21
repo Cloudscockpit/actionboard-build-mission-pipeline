@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"timeout 30 openshell sandbox delete --all-workspaces"}}

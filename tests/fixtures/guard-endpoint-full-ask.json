@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"openshell policy update red-act-01 --add-endpoint api.example.com:443:full"}}

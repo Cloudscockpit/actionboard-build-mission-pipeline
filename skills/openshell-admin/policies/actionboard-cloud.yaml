@@ -1,0 +1,164 @@
+# ActionBoard cloud pod control plane — egress template for a sandbox hosted
+# on a remote/cloud OpenShell gateway.
+#
+# WHAT THIS FILE IS. This is a SANDBOX EGRESS policy: it decides which hosts
+# code inside the sandbox may reach, and from which binary. It is a different
+# thing from the gateway the CLI authenticated to. Registering a cloud gateway
+# (`openshell gateway add https://... --oidc-issuer ...`, or `/pod-connect`)
+# grants you the right to create sandboxes; it grants those sandboxes no
+# egress whatsoever. Egress is deny-all until a policy like this one allows it.
+# Name collision, on purpose-adjacent: the gateway registration the connect
+# script creates is also called `actionboard-cloud` by default. That name is a
+# gateway; THIS file is a policy. `--gateway actionboard-cloud` and
+# `--policy policies/actionboard-cloud.yaml` are two independent choices and
+# either can be used without the other.
+#
+# NAMING — three words that get confused, kept apart here:
+#   ActionBoard pod  tenancy/billing label. `--pod`, `--label pod=`.
+#                    Appears in URL paths on the pod API.
+#   gateway          the OpenShell control plane the CLI authenticates to.
+#                    NEVER called a pod, even when it is hosted in the
+#                    ActionBoard cloud.
+#   workspace        the isolation boundary on that gateway.
+#   sandbox          the data plane this policy is attached to.
+#
+# CREDENTIALS ARE NEVER IN THIS FILE and must never be. No bearer token, no
+# client secret, no AWS key, not even a placeholder that looks like one.
+# Attach them so the gateway injects at the boundary:
+#   openshell provider create --name actionboard-pod --type <type> ...
+#   openshell sandbox create ... --provider actionboard-pod
+# If a request returns HTTP 403 `credential_endpoint_mismatch`, policy DID
+# admit the request and the PROVIDER PROFILE did not authorize that credential
+# for that host/port/path. Fix the provider profile
+# (`openshell provider profile export <id> -o yaml`). Never widen this policy
+# to make that error go away — widening silences the symptom and leaves the
+# credential binding wrong.
+#
+# ALL HOSTS ARE PLACEHOLDERS ON PURPOSE. A shipped template must not point at
+# production by default, and the remote path treats a surviving REPLACE_ token
+# as a hard failure. No real hostname or pod id is restated here; see
+# policies/actionboard-okf.yaml for a filled-in example from this estate.
+# What each placeholder is for, and how to resolve it:
+#   REPLACE_POD_API_HOST   the pod control-plane API hostname for this tenant.
+#                          From the ActionBoard pod console or the pod's own
+#                          API docs — never carried over from another tenant's
+#                          policy file.
+#   REPLACE_BILLING_HOST   the usage / metering API hostname. It is a separate
+#                          service and usually a separate hostname from the pod
+#                          API; confirm it rather than deriving it.
+#   REPLACE_AUTH_HOST      the user-pool domain the SANDBOX calls to mint a
+#                          token for the pod API (a Cognito user-pool domain in
+#                          this estate). Ask the operator for the pool that
+#                          belongs to the tenant being run — a dev pool is
+#                          never a cloud/production default, and this host is
+#                          not necessarily the issuer the CLI used to
+#                          authenticate to the gateway.
+#   REPLACE_POD_ID         the tenancy pod id, per tenant. It appears in the
+#                          POST path below, so a wrong value fails closed
+#                          instead of writing into another tenant's pod.
+# Resolve all four before the first remote provision; a surviving REPLACE_
+# token is a hard stop on a remote gateway, by design.
+#
+# BINARY PATHS: a connection is allowed only when the endpoint AND the calling
+# binary match inside the SAME block. The base image ships Python via uv, and
+# binding matches the RESOLVED executable, not the shim — binding the venv
+# shim alone yields "Tunnel connection failed: 403 Forbidden". Re-verify after
+# any base-image bump (the path embeds Python version AND CPU arch):
+#   openshell sandbox exec -n <sandbox> -- readlink -f /usr/local/bin/python3
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/usr, /lib, /etc]
+  read_write: [/tmp, /workspace]
+landlock:
+  compatibility: best_effort
+network_policies:
+  actionboard_pod_api:
+    name: actionboard-pod-api
+    endpoints:
+      # ActionBoard pod control-plane API (443).
+      # The allow/deny shape below mirrors the one verified in
+      # actionboard-okf.yaml against sandbox yellow-ab-okf-01. `GET /**` is the
+      # shape that was actually observed working; narrow it to
+      # "/pods/REPLACE_POD_ID/**" once the read surface this mission needs is
+      # enumerated, rather than guessing paths now.
+      - host: REPLACE_POD_API_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/**" }
+          # The single write this template authorizes, scoped to one tenancy
+          # pod. Another pod id is another rule, added deliberately.
+          - allow: { method: POST, path: "/pods/REPLACE_POD_ID/chat" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: POST,   path: "/admin/**" }
+      # Search/index port on the same host. read-only spelled out as explicit
+      # rules so the deny_rules below have an allow base to attach to.
+      # NOTE: a non-default port must also appear in the client's Host header —
+      # `Host: <pod-api-host>:9200` — or the gateway returns
+      # `request_authority_mismatch` even though this endpoint is authorized.
+      # If a query genuinely needs `POST /_search`, add exactly that path. Do
+      # not promote this endpoint to read-write.
+      - host: REPLACE_POD_API_HOST
+        port: 9200
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/**" }
+          - allow: { method: HEAD, path: "/**" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: POST,   path: "/admin/**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+  actionboard_billing:
+    name: actionboard-billing
+    endpoints:
+      # Billing / metering. Read-only, always: this mission reads usage, it
+      # never posts adjustments. actionboard-okf.yaml:86 writes the same intent
+      # with the `access: read-only` shorthand; spelled out here so the
+      # destructive denies have an allow base.
+      - host: REPLACE_BILLING_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET,  path: "/**" }
+          - allow: { method: HEAD, path: "/**" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: POST,   path: "/admin/**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+  actionboard_auth:
+    name: actionboard-auth
+    endpoints:
+      # Cognito user-pool domain for the tenant. Token exchange only.
+      # This is the pool the SANDBOX calls to mint a token for the pod API. It
+      # is not necessarily the same issuer the CLI used to log in to the
+      # gateway — ask, do not assume they are one pool.
+      # POST /oauth2/token is the one write; everything else is GET.
+      - host: REPLACE_AUTH_HOST
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/oauth2/token" }
+          - allow: { method: GET,  path: "/oauth2/**" }
+        deny_rules:
+          - { method: DELETE, path: "/**" }
+          - { method: POST,   path: "/admin/**" }
+    binaries:
+      - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+      - { path: /sandbox/.venv/bin/python3 }
+      - { path: /usr/bin/curl }
+# No package-install block here on purpose. If the mission also needs pypi /
+# npm, take that block from the profile template (data.yaml, analysis.yaml)
+# bound to the package binaries — do not bind package hosts to curl in the
+# blocks above.

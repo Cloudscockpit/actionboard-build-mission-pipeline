@@ -98,6 +98,97 @@ enforcement — it observes what *would* have been denied without blocking.
 Three non-agent profiles also ship: `train` (GPU, registry + object store only),
 `inference` (local model server), and `scratch` (untrusted code, no egress at all).
 
+## Remote sandboxes on an ActionBoard cloud pod
+
+The gateway those sandboxes are created on can be on this machine or in the ActionBoard
+cloud. The local path is unchanged and stays the default; the cloud path is a peer of it,
+not a replacement. Three words that are easy to conflate: an ActionBoard **pod** is a
+tenancy and billing label, the OpenShell **gateway** is the control plane that provisions
+sandboxes, and a **workspace** is the isolation boundary inside that gateway. `--pod`
+labels a sandbox; it never decides where the sandbox is created.
+
+`/pod-connect` registers, authenticates, and selects a cloud gateway, then verifies the
+identity the gateway actually sees. Three facts come from your ActionBoard pod console and
+from nowhere else — no endpoint, no issuer, and no identity-pool default ships with this
+plugin:
+
+| Fact | Flag | Env |
+|------|------|-----|
+| Gateway URL (`https://…`) | `--url` | `ACTIONBOARD_GATEWAY_URL` |
+| OIDC issuer | `--oidc-issuer` | `ACTIONBOARD_OIDC_ISSUER` |
+| One-time token | *(none — by design)* | `ACTIONBOARD_POD_TOKEN` |
+
+**The one-time token never goes on a command line.** argv is recorded by shell history, by
+`ps`, and by this plugin's own audit hook, so a token placed there is already leaked. Prompt
+for it instead — `read -rs` echoes nothing and puts no token text on the command line, so the
+value never reaches `~/.zsh_history`. Paste at the silent prompt, then connect:
+
+```bash
+read -rs ACTIONBOARD_POD_TOKEN && export ACTIONBOARD_POD_TOKEN
+```
+
+```
+/pod-connect https://<your-gateway> <pod-id>
+```
+
+Two alternatives that also keep the token off the command line. The clipboard one still leaves
+the token in the pasteboard, so clear it afterwards:
+
+```bash
+export ACTIONBOARD_POD_TOKEN="$(pbpaste)"
+```
+
+```bash
+<your password-manager read command> | \
+  ${CLAUDE_PLUGIN_ROOT}/skills/openshell-admin/scripts/openshell-gateway-connect.sh \
+    --url https://<your-gateway> --name actionboard-cloud \
+    --oidc-issuer <your-issuer> --workspace <workspace> --pod <pod-id> \
+    --token-stdin --dry-run
+```
+
+**What “not recorded” does and does not mean.** A bare `read` or `export` line contains no
+`openshell` substring, so `hooks/audit-policy.sh` never matches it and nothing reaches
+`.openshell-audit.log`. That is the whole claim — it is about this plugin's audit hook and
+nothing else. Your shell still appends the line you typed to `~/.zsh_history` (or
+`~/.bash_history`), so an `export ACTIONBOARD_POD_TOKEN=` with the token typed out after it
+leaks it to history verbatim while the audit log stays clean. `read -rs` is what closes that
+channel: the token is typed at the prompt, not on the command line. Do not inline-prefix the
+wrapper either (`ACTIONBOARD_POD_TOKEN=… ./openshell-gateway-connect.sh …`) — that assignment
+belongs to *your* command line, not the wrapper's, so the wrapper cannot redact it.
+`--token-stdin` is immune to both channels — feed it from a vault or a variable, never from
+a literal typed into the same command.
+
+`--dry-run` runs first, every time: it registers nothing, authenticates nothing, and writes
+nothing. Read the plan, then re-run without it. The wrapper finishes with `openshell whoami`
+and `openshell workspace list` and reports the subject the gateway validated — a zero exit
+code is not success, a validated subject with workspace membership is. A one-time token is
+spent by the first successful connect, so a retry needs a fresh one from the pod console.
+
+**Browser fallback.** If the pod issues no one-time tokens, add `--browser` and drop the
+token; that runs the interactive `openshell gateway login` flow instead. It is the
+documented fallback, not the normal path, and it cannot be used from a headless or CI shell.
+
+Once connected, name the gateway on everything: `openshell-provision.sh --gateway <name>`,
+and teardown's `--delete` refuses to infer it at all. The active selection is whatever the
+last command left behind, which on a shared multi-tenant gateway is how work lands in
+someone else's pod.
+
+Two things that work locally fail against a remote gateway, and the provision wrapper exits
+non-zero rather than letting them fail obscurely: an `--image ./dir` or Dockerfile build
+(the CLI builds those on *this* machine's Docker daemon, which the gateway cannot see — push
+and pass a registry reference), and a policy template still holding `REPLACE_` placeholders
+(a warning locally, a hard stop remotely). The full list — images, GPU driver keys, port
+forwards, editors, `policy set --global` — is the capability matrix in
+[skills/openshell-admin/references/agent-profiles.md](skills/openshell-admin/references/agent-profiles.md)
+under *Local vs remote/cloud gateway capability matrix*. It is not duplicated here.
+
+The plugin's Bash hooks cover this path: the PreToolUse guard denies `--gateway-insecure`
+and any credential-shaped value in argv, and asks before `--gateway-endpoint`,
+`gateway remove`, and `gateway logout`; the PostToolUse hook redacts credential values before
+appending to `.openshell-audit.log`. Neither of them takes effect from this repository —
+the installed copy is what executes, so see
+[Updating an installed plugin](#updating-an-installed-plugin) before relying on either.
+
 ## Installation
 
 ### Claude Code
@@ -128,6 +219,62 @@ Then type `/start-mission` followed by what you want done, in plain English:
 ```
 
 ActionBoard V5 shows you a mission plan and waits — nothing happens until you reply `go`.
+
+### Updating an installed plugin
+
+**Editing a clone of this repo does not change the plugin that runs.** Claude Code executes
+the installed copies, not your working tree:
+
+```
+~/.claude/plugins/marketplaces/<marketplace>/
+~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+```
+
+`hooks/hooks.json` registers both Bash hooks as `${CLAUDE_PLUGIN_ROOT}/hooks/…`, and
+`CLAUDE_PLUGIN_ROOT` resolves to that installed copy. This is not theoretical: while the
+OpenShell hooks were being hardened, the old unpatched audit hook kept running from the
+installed copy and kept writing unredacted command text to `.openshell-audit.log` long after
+the repository copy was fixed.
+
+So after any change here — and after any version bump — update or reinstall the plugin before
+expecting it to take effect. Open `/plugin` and update the marketplace and the plugin, or
+reinstall with the two Claude Code commands above. If the summary reports
+`Run /reload-plugins to activate.`, run `/reload-plugins`.
+
+**This one is security-relevant.** `hooks/guard-openshell.sh` is what denies a credential in
+argv, and `hooks/audit-policy.sh` is what redacts one before it reaches the audit log. Until
+the installed copy carries them, neither protection exists — whatever this repository says.
+
+**Verify the reinstall actually took.** Both hook scripts declare a `HOOK_CONTRACT_VERSION`
+constant, and the smoke suite asserts it against the `version` in
+`.claude-plugin/plugin.json`. One command reads it back out of the copy that runs:
+
+```bash
+grep -h HOOK_CONTRACT_VERSION ~/.claude/plugins/marketplaces/*/hooks/*.sh
+```
+
+A correct result is one `HOOK_CONTRACT_VERSION="<version>"` line per hook script — two lines,
+both equal to the version of the plugin you just installed. Anything else means the hardened
+hooks are not the ones running:
+
+- **No output at all** — the installed copy predates the constant. It is running pre-0.7.0
+  hooks, so neither the PostToolUse redaction nor the PreToolUse argv-credential denial is in
+  effect, and a token in argv will be written to the audit log in the clear.
+- **A version older than the one in `.claude-plugin/plugin.json`** — the update did not take.
+  Same exposure; the marketplace or the plugin is still pinned to the previous release.
+- **One line instead of two** — only one of the two hooks was updated; the other protection
+  is missing.
+
+Re-run the update or the two install commands above until the grep matches, then
+`/reload-plugins`. When several versions are on disk, the cache copy answers the same way:
+
+```bash
+grep -h HOOK_CONTRACT_VERSION ~/.claude/plugins/cache/*/*/*/hooks/*.sh
+```
+
+Fix this by reinstalling, never by hand-editing anything under `~/.claude/plugins/` — an
+edited install is overwritten by the next update and silently diverges from this repository in
+the meantime.
 
 ## Mission documents as a knowledge base
 
@@ -189,6 +336,7 @@ The plugin ships a machine-readable registry of everything the Agents can do:
 | mission-brief-authoring, mission-plan-authoring, mission-report-authoring | Black Agent | covered |
 | skill-scaffolding | Black Agent | covered (asks approval first) |
 | live-browser-action | Black Agent | conditional — per-site user approval; credentials always handed to you |
+| remote-gateway-connect, remote-mission-execution | Black Agent | conditional — operator-supplied gateway URL, issuer, and one-time token; connect verified before the harness runs |
 
 To register a new action type, edit `actions-map.json`, bump the plugin version, and reinstall.
 
@@ -210,6 +358,7 @@ To register a new action type, edit `actions-map.json`, bump the plugin version,
 | `actionboard-devops-mission` | Run a maturity-gated DevOps mission — register actions, classify risk, score the five stages, enforce the formation gate |
 | `mission-harness` | Build the sandbox harness for a mission — one isolated environment per agent |
 | `openshell-admin` | Provision and govern OpenShell sandboxes, workspaces, and policies |
+| `pod-connect` | Connect to a remote ActionBoard cloud OpenShell gateway with a one-time token, then verify the identity it sees |
 | `sandbox-up` / `sandbox-down` | Provision or tear down a sandbox for an agent or usecase |
 | `sandbox-status` | Show sandboxes for a mission, tenant, or agent with phase and policy |
 | `policy-widen` | Triage a denial and add the narrowest rule that fixes it |
@@ -254,8 +403,8 @@ skills/               mission-brief, mission-plan, mission-report,
                       actionboard-devops-mission (scripts/, references/,
                       assets/, docs/),
                       mission-harness, openshell-admin (policies/, scripts/,
-                      references/), sandbox-up, sandbox-down, sandbox-status,
-                      policy-widen
+                      references/), pod-connect, sandbox-up, sandbox-down,
+                      sandbox-status, policy-widen
 kb/                   knowledge base the skills read at runtime
 ```
 

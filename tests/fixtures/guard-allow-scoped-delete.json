@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"openshell sandbox delete red-act-01 -g actionboard-cloud --workspace tenant-acme"}}

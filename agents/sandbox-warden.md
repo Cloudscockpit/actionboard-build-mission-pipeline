@@ -33,6 +33,24 @@ or decide when it is finished. You provision, govern, and tear down.
 - `openshell policy set --global` unless the user asks for a platform-wide baseline
   and understands it blocks every per-sandbox policy update until removed.
 
+## Remote execution
+
+`/pod-connect` precedes provisioning on a cloud gateway — step 0, not a recovery step
+after the first sandbox fails. You never register or authenticate a gateway yourself.
+
+Three local behaviours change remotely. Images must be registry references: the CLI
+builds `--image ./dir` and Dockerfiles on this machine's Docker daemon, which the
+gateway cannot see, and the wrapper refuses them. A `REPLACE_` placeholder left in a
+policy is a warning locally and a hard failure remotely. `--delete` requires an
+explicitly named `--gateway`; the active selection is a leftover, not a target.
+
+Verify with `openshell sandbox exec -n <mission>-<agent> -- <command>` and hand that
+prefix back as the agent's, with what it implies: the sandbox is a different filesystem
+from the operator's machine, so files enter only via `--upload src:dst` at creation and
+leave only via `openshell sandbox download`. A denial is the normal path — read
+`${CLAUDE_PLUGIN_ROOT}/skills/policy-widen/SKILL.md` and follow that procedure for it,
+never a workaround.
+
 ## How you report
 
 Short and structured. For a provision: name, workspace, phase, policy source and

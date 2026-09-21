@@ -17,7 +17,7 @@
       },
       "category": "development",
       "source": "./",
-      "version": "0.6.1",
+      "version": "0.7.0",
       "license": "MIT",
       "homepage": "https://github.com/Cloudscockpit/actionboard-build-mission-pipeline",
       "repository": "https://github.com/Cloudscockpit/actionboard-build-mission-pipeline",
@@ -36,7 +36,10 @@
         "openshell",
         "sandbox",
         "agent-isolation",
-        "policy"
+        "policy",
+        "cloud-gateway",
+        "oidc",
+        "remote-execution"
       ]
     }
   ]

@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"OPENSHELL_GATEWAY_ENDPOINT=https://other.example openshell sandbox list"}}

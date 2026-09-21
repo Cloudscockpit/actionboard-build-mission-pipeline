@@ -62,6 +62,11 @@ host:port[:access[:protocol[:enforcement[:options]]]]
 `api.github.com:443::rest` is **invalid** — an L7 endpoint with a protocol but
 no `access` or `rules` is rejected at load.
 
+A non-default port in the spec authorizes the tunnel; it does not change what
+the client sends. The client must still put that port in its `Host:` header or
+the gateway answers `request_authority_mismatch`. This bites on the ActionBoard
+pod's `:9200` endpoint specifically — see the cloud blocks below.
+
 Rule specs for `--add-allow` / `--add-deny`:
 
 ```
@@ -191,6 +196,144 @@ registry entry.
 the handshake, and `WEBSOCKET_TEXT` rules for client text messages. Path globs
 match the upgrade path, not payload content. A hot reload closes the relay with
 code `1012` when the pinned generation goes stale.
+
+## ActionBoard cloud pod blocks
+
+For a sandbox that must reach the ActionBoard pod control plane. "Pod" here is
+the ActionBoard tenancy/billing pod (`--pod`, `--label pod=`, `pod-free-001`),
+not the OpenShell gateway — these blocks govern sandbox **egress** and are
+unrelated to which gateway the CLI logged in to.
+
+Hosts are placeholders on purpose; a shipped recipe must not point at
+production. The verified real values live in `policies/actionboard-okf.yaml`
+and are named in the comments of `policies/actionboard-cloud.yaml`, which is
+the assembled version of all three blocks below.
+
+**ActionBoard pod API**
+
+```yaml
+actionboard_pod_api:
+  name: actionboard-pod-api
+  endpoints:
+    - host: REPLACE_POD_API_HOST          # e.g. genai.actionboard.com.bd
+      port: 443
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: GET,  path: "/**" }
+        - allow: { method: POST, path: "/pods/REPLACE_POD_ID/chat" }
+      deny_rules:
+        - { method: DELETE, path: "/**" }
+        - { method: POST,   path: "/admin/**" }
+    - host: REPLACE_POD_API_HOST          # same host, search/index port
+      port: 9200
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: GET,  path: "/**" }
+        - allow: { method: HEAD, path: "/**" }
+      deny_rules:
+        - { method: DELETE, path: "/**" }
+        - { method: POST,   path: "/admin/**" }
+  binaries:
+    - { path: /sandbox/.uv/python/cpython-3.14.3-linux-aarch64-gnu/bin/python3.14 }
+    - { path: /sandbox/.venv/bin/python3 }
+    - { path: /usr/bin/curl }
+```
+
+The single POST is scoped to one pod id. A second pod is a second rule, added
+deliberately — do not reach for `/pods/*/chat`.
+
+**Billing / metering, read-only**
+
+```yaml
+actionboard_billing:
+  name: actionboard-billing
+  endpoints:
+    - host: REPLACE_BILLING_HOST          # e.g. api-billing.actionboard.ai
+      port: 443
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: GET,  path: "/**" }
+        - allow: { method: HEAD, path: "/**" }
+      deny_rules:
+        - { method: DELETE, path: "/**" }
+        - { method: POST,   path: "/admin/**" }
+  binaries:
+    - { path: /usr/bin/curl }
+```
+
+`access: read-only` is the shorthand for the same intent and is what
+`actionboard-okf.yaml` uses. Spell the rules out when you also want
+`deny_rules`, which need an allow base to attach to. Metering is read: a
+mission that thinks it needs to POST here is a mission that has confused
+reporting usage with recording it.
+
+**Cognito token endpoint**
+
+```yaml
+actionboard_auth:
+  name: actionboard-auth
+  endpoints:
+    - host: REPLACE_AUTH_HOST             # the tenant's Cognito user-pool domain
+      port: 443
+      protocol: rest
+      enforcement: enforce
+      rules:
+        - allow: { method: POST, path: "/oauth2/token" }
+        - allow: { method: GET,  path: "/oauth2/**" }
+      deny_rules:
+        - { method: DELETE, path: "/**" }
+        - { method: POST,   path: "/admin/**" }
+  binaries:
+    - { path: /usr/bin/curl }
+```
+
+`absaas-dev.auth.ap-southeast-1.amazoncognito.com` is the pool currently
+hardcoded in `policies/actionboard-okf.yaml`. It is the **dev** pool. Never
+carry it into a cloud or production run as a default — ask which pool belongs
+to the tenant. The pool a sandbox exchanges tokens against is also not
+necessarily the OIDC issuer the CLI used to log in to the gateway; confirm
+rather than assume they are one.
+
+Incremental equivalent, when you are widening a live sandbox against an
+observed denial rather than writing the file up front:
+
+```bash
+openshell policy update <name> \
+  --add-endpoint <pod-api-host>:443:read-only:rest:enforce \
+  --binary /usr/bin/curl --wait
+
+openshell policy update <name> \
+  --add-allow '<pod-api-host>:443:POST:/pods/<pod-id>/chat' --wait
+
+openshell policy update <name> \
+  --add-deny '<pod-api-host>:443:POST:/admin/**' --wait
+```
+
+### Two rules this path keeps tripping over
+
+**`credential_endpoint_mismatch` is never fixed by widening this policy.** The
+error means policy already admitted the request and the *provider profile* did
+not authorize that credential for that host, port, and path. A sandbox policy
+allow does not expand a credential binding. Export the profile
+(`openshell provider profile export <id> -o yaml`), fix the endpoint list
+there, and leave the sandbox policy alone. Widening it turns a precise,
+correct denial into a sandbox that can reach the pod API with no credential —
+which then fails later, further from the cause.
+
+**`request_authority_mismatch` means the client omitted the port.** The
+authorized tunnel endpoint is `host:9200`; an HTTP client that sends
+`Host: <pod-api-host>` without the port presents a different authority and the
+gateway refuses it. Send the port explicitly:
+
+```bash
+curl -H 'Host: <pod-api-host>:9200' http://<pod-api-host>:9200/_cluster/health
+```
+
+This is a client fix, not a policy fix. Adding endpoints until the error stops
+will not stop it, because every added endpoint has the same mismatch.
 
 ## Credentials
 

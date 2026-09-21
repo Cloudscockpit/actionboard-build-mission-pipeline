@@ -3,6 +3,22 @@
 Every profile is a starting point. Size up only with evidence (OOM, timeout);
 never widen `access` without an observed denial.
 
+## Glossary — keep these four apart
+
+The word "pod" means two unrelated things in this stack and mixing them
+produces policies that look right and deny everything.
+
+| Term | What it is | Where you see it |
+|---|---|---|
+| **ActionBoard pod** | A tenancy / billing label. Identifies whose usage this is. It is not a runtime, not a host, not a Kubernetes pod. | `--pod acme-prod`, `--label pod=<pod-id>`, pod ids like `pod-free-001`, URL paths like `/pods/<pod-id>/chat` |
+| **OpenShell gateway** | The control plane the CLI authenticates to and that provisions sandboxes. May be local, remote-over-SSH, or hosted in the ActionBoard cloud. **Never call it a pod**, even when it is the "AI pod" gateway. | `openshell gateway add/select/login`, `-g/--gateway`, `OPENSHELL_GATEWAY_ENDPOINT` |
+| **Workspace** | The isolation boundary *on* a gateway. Sandboxes, providers, policies, services, and inference routes live in exactly one and are invisible from another. Membership in one grants nothing in another. | `--workspace`, `OPENSHELL_WORKSPACE`, `openshell workspace list` |
+| **Sandbox** | The data plane — the isolated environment an Agent actually runs in. Governed by a policy file. | `openshell sandbox create/exec/get` |
+
+So: an Agent runs in a **sandbox**, inside a **workspace**, on a **gateway**,
+billed to an ActionBoard **pod**. A sandbox policy governs sandbox egress; it
+says nothing about which gateway provisioned it.
+
 ## Profile table
 
 | Usecase / Agent | Profile | Image | CPU | Memory | GPU | Policy template | Default access |
@@ -66,6 +82,36 @@ prompts off external endpoints and keeps keys at the gateway.
 write and do not trust. If it needs a package, install it in the image, not at
 runtime.
 
+## Local vs remote/cloud gateway capability matrix
+
+Most of the CLI behaves identically against a local gateway and against a
+remote or ActionBoard-cloud gateway. The exceptions below are the ones that
+silently waste a mission, because the flag is accepted and then the work does
+not land where you expected.
+
+| Capability | Local gateway | Remote / cloud gateway | Remedy on remote |
+|---|---|---|---|
+| `--from ./dir` | Works — CLI builds the directory's Dockerfile into the **local** Docker daemon | **Fails** — the built image exists only on your laptop; the remote gateway cannot see it | Build and push, then use a registry reference |
+| `--from Dockerfile` | Works — same local-daemon build | **Fails** — same reason | `docker build && docker push`, then `--from <registry>/<img>:<tag>` |
+| `--from base` (community name) | Works — resolves to `ghcr.io/nvidia/openshell-community/sandboxes/base:latest` | Works **if** the gateway's nodes can pull from ghcr.io | Registry-restricted cluster: mirror the image and set `OPENSHELL_COMMUNITY_REGISTRY` to the mirror prefix |
+| `--from <registry-ref>` | Works | Works — this is the only portable image source | Private registry: the pull credential lives on the gateway side, not in your CLI config <sup>[i]</sup> |
+| `--upload ./src:/workspace/src` | Works | Works — streamed through the gateway API, not the Docker daemon <sup>[i]</sup> | Nothing, but the bytes cross the WAN. `.gitignore` filtering happens locally; pass `--no-git-ignore` deliberately, not reflexively |
+| `--forward [addr:]port` | Works | Works — tunneled through the gateway, and it holds the CLI session open | Long-lived exposure should be `service expose` instead; a forward dies with your session and with your gateway token <sup>[i]</sup> |
+| `--editor vscode` / `cursor` | Works | Conditional — it installs an OpenShell-managed SSH config and needs the `ssh-proxy` path reachable through the edge <sup>[i]</sup> | If the edge does not pass SSH, drop to `sandbox exec` plus `service expose` |
+| `service expose <sb> <port> <name>` | Works | Works, and it is the **preferred** remote answer — the URL is gateway-managed on the gateway's own domain and is subject to workspace auth | — |
+| GPU via Docker CDI (`--driver-config-json '{"docker":{"cdi_devices":[…]}}'`) | Works on a Docker-driver gateway | **Fails** on a Kubernetes cloud gateway — `docker` is the wrong top-level key for the active driver | Use the Kubernetes key: `--driver-config-json '{"kubernetes":{"pod":{"node_selector":{"pool":"gpu"}}}}'`. Note that *enabling* Docker CDI after a gateway has started requires a gateway restart, which on a shared gateway is a Platform Admin action you cannot self-serve |
+| GPU on Kubernetes (`--gpu N`) | Only if the local gateway runs the Kubernetes driver | Works when a GPU node pool exists; sets the `nvidia.com/gpu` limit, and `--cpu`/`--memory` apply as both request and limit | Select the pool with the `kubernetes` driver-config key above. VM gateways accept exactly one GPU. GPU passthrough is experimental — test before promising it |
+| `sandbox download` | Works | Works — sources must still resolve inside the sandbox's canonical workdir; lexical and symlink escapes are refused before any data moves | — |
+| `policy set --global` | Affects only your own gateway | Affects **every workspace on the shared gateway**, and while a global policy exists all sandbox-level policy updates are rejected | Do not run it on a shared cloud gateway. It is a Platform Admin decision, not a mission step |
+
+<sup>[i]</sup> INFERRED from CLI help text and the local/remote split, not
+confirmed against a live ActionBoard cloud gateway. Verify on first contact
+and correct this table.
+
+The short version: on a remote or cloud gateway, **images must come from a
+registry and GPU selection must use the Kubernetes driver key**. Everything
+else degrades gracefully.
+
 ## Label convention
 
 Always set all four. They drive metering, forensics, and cleanup.
@@ -87,6 +133,15 @@ openshell sandbox list --selector mission=mission-4471 -o json
 Labels set at `create` are stored on the gateway object and returned on
 `SandboxRef.labels`, so Python SDK-created sandboxes are found by the same
 selectors.
+
+On a laptop-local gateway you can get away with dropping labels; nobody else
+is on it. On a shared ActionBoard cloud gateway they stop being optional. The
+gateway is multi-tenant, so `tenant` and `pod` are the only things that
+attribute cost and forensics to the right customer, and `agent` plus `mission`
+are the only way to tell your sandboxes from another operator's in the same
+workspace. A cloud sandbox created without the four labels is an unattributable
+line item — treat a missing label as a provisioning error, not a style nit.
+Remember `pod` here is the ActionBoard tenancy pod, not the gateway.
 
 ## Workspace mapping
 

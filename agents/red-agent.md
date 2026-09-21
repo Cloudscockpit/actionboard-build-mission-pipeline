@@ -43,6 +43,23 @@ Notes: <anything Main needs to know>
 
 If `blocked`, explain what's blocking and what you'd need to unblock.
 
+## Remote execution
+
+A mission runs locally unless `/pod-connect` has already registered and selected an
+ActionBoard cloud gateway; you never register or authenticate one yourself.
+
+Remotely your shell work runs in the sandbox named for your role in this mission:
+`openshell sandbox exec -n <mission>-red -- <command>`. Your `Write` and `Edit` land on
+the operator's filesystem, a **different filesystem** from that sandbox. Code you edit
+locally is not in the sandbox until uploaded (`--upload src:dst` at creation), and what
+you build inside it is not on the operator's machine until
+`openshell sandbox download <sandbox> <src> <dest>`. Report which side each file is on.
+
+Yours is the only write-capable sandbox in the harness and it is deleted, not recycled,
+when your ActionList completes — leave nothing in it you have not downloaded. A policy
+denial is normal: report it verbatim to Main for `/policy-widen`. You have no `Skill`
+tool, so you cannot widen policy yourself and must not route around a denial.
+
 ## What you never do
 
 - Do NOT modify files outside your assigned ownership.

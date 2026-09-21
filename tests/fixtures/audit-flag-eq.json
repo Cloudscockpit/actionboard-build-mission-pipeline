@@ -1,0 +1,1 @@
+{"session_id":"smoke","tool_name":"Bash","tool_input":{"command":"openshell sandbox create --name smoke --api-key=FAKE_SMOKE_TOKEN_0123456789_NOT_REAL"}}
