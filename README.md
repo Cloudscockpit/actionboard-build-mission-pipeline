@@ -1,5 +1,18 @@
 # ActionBoard V5 AgentFormation
 
+> [!IMPORTANT]
+> **This repository is superseded.** Development continues in
+> [Cloudscockpit/ab-mission-command-center](https://github.com/Cloudscockpit/ab-mission-command-center),
+> which ships the same Agent Formation (version 1.0.0) for **Claude Code, OpenCode, Codex CLI and
+> Antigravity CLI** from one source. v0.6.1 here stays installable but receives no new features.
+>
+> Claude Code users can switch with:
+>
+> ```
+> /plugin marketplace add Cloudscockpit/ab-mission-command-center
+> /plugin install actionboard-v5-agentformation@actionboard-v5-agentformation
+> ```
+
 Turn one objective into a reviewed plan, then execute it with five parallel agents that never
 touch the same file. **Nothing runs until you approve.**
 
